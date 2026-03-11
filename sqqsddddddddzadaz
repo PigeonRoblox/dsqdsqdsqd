@@ -812,13 +812,56 @@ async function getDB(){
   _db={db:getFirestore(app),doc,getDoc,setDoc};
   return _db;
 }
+/* Chunk size — chaque doc Firestore max ~1MB, 200 posts par chunk = safe même avec fileContent */
+const CHUNK_SIZE=200;
+
 async function loadProfilesDB(){
-  try{const {db,doc,getDoc}=await getDB();const snap=await getDoc(doc(db,'securedb','profiles'));return snap.exists()?snap.data().list:[];}
-  catch(e){return[];}
+  try{
+    const {db,doc,getDoc}=await getDB();
+    // Lire le manifest pour savoir combien de chunks existent
+    const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest'));
+    let numChunks=1;
+    if(manifestSnap.exists()) numChunks=manifestSnap.data().chunks||1;
+
+    // Charger tous les chunks en parallèle
+    const promises=[];
+    for(let i=0;i<numChunks;i++){
+      promises.push(
+        getDoc(doc(db,'securedb','profiles_'+i))
+          .then(s=>s.exists()?s.data().list:[])
+          .catch(()=>[])
+      );
+    }
+    // Aussi essayer l'ancien doc unique (migration)
+    promises.push(
+      getDoc(doc(db,'securedb','profiles'))
+        .then(s=>s.exists()?s.data().list:[])
+        .catch(()=>[])
+    );
+
+    const results=await Promise.all(promises);
+    const allItems=results.flat();
+    // Dédupliquer par id
+    const seen=new Set();
+    return allItems.filter(p=>{const k=String(p.id);if(seen.has(k))return false;seen.add(k);return true;});
+  }catch(e){console.error('loadProfilesDB',e);return[];}
 }
+
 async function saveProfilesDB(arr){
-  try{const {db,doc,setDoc}=await getDB();await setDoc(doc(db,'securedb','profiles'),{list:arr});}
-  catch(e){}
+  try{
+    const {db,doc,setDoc}=await getDB();
+    const numChunks=Math.ceil(arr.length/CHUNK_SIZE)||1;
+
+    // Sauvegarder chaque chunk
+    const promises=[];
+    for(let i=0;i<numChunks;i++){
+      const chunk=arr.slice(i*CHUNK_SIZE,(i+1)*CHUNK_SIZE);
+      promises.push(setDoc(doc(db,'securedb','profiles_'+i),{list:chunk}));
+    }
+    // Sauvegarder le manifest
+    promises.push(setDoc(doc(db,'securedb','profiles_manifest'),{chunks:numChunks,total:arr.length,updatedAt:new Date().toISOString()}));
+    await Promise.all(promises);
+  }catch(e){console.error('saveProfilesDB',e);}
 }
 
 /* ═══════════════════════════════
