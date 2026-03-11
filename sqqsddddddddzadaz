@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Secure DB</title>
-<link rel="icon" type="image/avif" href="data:image/avif;base64,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"/>
+<link rel="icon" type="image/png" href="data:image/png;base64,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"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <style>
@@ -527,6 +527,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;ove
       <button class="tab active" onclick="switchTab('browse')" id="tab-browse">Explore</button>
       <button class="tab" onclick="switchTab('create')" id="tab-create">+ Post</button>
       <button class="tab" onclick="switchTab('contact')" id="tab-contact">Contact</button>
+      <button class="tab" onclick="openAdminPanel()" id="tab-admin" style="display:none;color:#f0c040;border:1px solid #4a3800">👑 Admin</button>
     </div>
   </nav>
 
@@ -742,13 +743,14 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;ove
 <div class="toast" id="toast" style="display:none"></div>
 
 <script>
+const ADMIN_EMAIL='test94674327@gmail.com';
+
 /* ═══════════════════════════════
    AUTO TRANSLATION
 ═══════════════════════════════ */
 const userLang=(navigator.language||'en').slice(0,2).toLowerCase();
 const needsTr=userLang!=='en';
 let undefinedLabel='Undefined by user';
-
 const TX={
   'h-eyebrow':'— Securised Data Base —',
   'h-tagline':"TROUVEZ N'IMPORTE QUI",
@@ -776,7 +778,6 @@ const TX={
   'cc-email-sub':'Coming soon — account creation will unlock direct messaging.',
   'cc-report':'Report an issue','cc-report-sub':'Found a bug or inappropriate profile? Let us know on Discord.',
 };
-
 async function autoTranslate(){
   if(!needsTr) return;
   const langName=new Intl.DisplayNames(['en'],{type:'language'}).of(userLang)||userLang;
@@ -799,153 +800,90 @@ async function autoTranslate(){
 /* ═══════════════════════════════
    FIREBASE
 ═══════════════════════════════ */
-const STORAGE_KEY='securedb-v3';
-let allProfiles=[];
-let _db=null;
-
+let allProfiles=[],_db=null;
 async function getDB(){
   if(_db) return _db;
   const {initializeApp,getApps}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
   const {getFirestore,doc,getDoc,setDoc}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-  const firebaseConfig={
-    apiKey:"AIzaSyAIJO9lD7lL-tgFgO3bxnz0guoREVa1lQg",
-    authDomain:"db-d5a6b.firebaseapp.com",projectId:"db-d5a6b",
-    storageBucket:"db-d5a6b.firebasestorage.app",messagingSenderId:"848019546663",
-    appId:"1:848019546663:web:a69fe9bd1ce9731a962402"
-  };
-  const app=getApps().length?getApps()[0]:initializeApp(firebaseConfig);
+  const cfg={apiKey:"AIzaSyAIJO9lD7lL-tgFgO3bxnz0guoREVa1lQg",authDomain:"db-d5a6b.firebaseapp.com",
+    projectId:"db-d5a6b",storageBucket:"db-d5a6b.firebasestorage.app",
+    messagingSenderId:"848019546663",appId:"1:848019546663:web:a69fe9bd1ce9731a962402"};
+  const app=getApps().length?getApps()[0]:initializeApp(cfg);
   _db={db:getFirestore(app),doc,getDoc,setDoc};
   return _db;
 }
-
 async function loadProfilesDB(){
   try{const {db,doc,getDoc}=await getDB();const snap=await getDoc(doc(db,'securedb','profiles'));return snap.exists()?snap.data().list:[];}
-  catch(e){console.error('loadProfilesDB',e);return[];}
+  catch(e){return[];}
 }
 async function saveProfilesDB(arr){
   try{const {db,doc,setDoc}=await getDB();await setDoc(doc(db,'securedb','profiles'),{list:arr});}
-  catch(e){console.error('saveProfilesDB',e);}
+  catch(e){}
 }
 
 /* ═══════════════════════════════
-   INTERACTIONS — Stats (vues, réactions, commentaires)
+   STATS (vues, réactions)
 ═══════════════════════════════ */
 let _cachedStats={};
-
 async function loadStats(){
-  try{
-    const {db,doc,getDoc}=await getDB();
-    const snap=await getDoc(doc(db,'securedb','stats'));
-    _cachedStats=snap.exists()?snap.data():{};
-  }catch(e){_cachedStats={};}
+  try{const {db,doc,getDoc}=await getDB();const snap=await getDoc(doc(db,'securedb','stats'));_cachedStats=snap.exists()?snap.data():{};}
+  catch(e){_cachedStats={};}
 }
-
 async function saveStats(){
-  try{
-    const {db,doc,setDoc}=await getDB();
-    await setDoc(doc(db,'securedb','stats'),_cachedStats);
-  }catch(e){}
+  try{const {db,doc,setDoc}=await getDB();await setDoc(doc(db,'securedb','stats'),_cachedStats);}catch{}
 }
-
-// ── Vues ──
 async function incrementView(postId){
-  const key='v_'+postId;
-  _cachedStats[key]=(_cachedStats[key]||0)+1;
-  await saveStats();
-  return _cachedStats[key];
+  const key='v_'+postId;_cachedStats[key]=(_cachedStats[key]||0)+1;
+  await saveStats();return _cachedStats[key];
 }
-
-// ── Réactions ──
-const REACTIONS=[
-  {key:'fire',emoji:'🔥'},{key:'heart',emoji:'❤️'},
-  {key:'lol',emoji:'😂'},{key:'like',emoji:'👍'}
-];
-
-function getUserReactions(){
-  try{return JSON.parse(localStorage.getItem('sdb-reactions')||'{}');}catch{return {};}
-}
+const REACTIONS=[{key:'fire',emoji:'🔥'},{key:'heart',emoji:'❤️'},{key:'lol',emoji:'😂'},{key:'like',emoji:'👍'}];
+function getUserReactions(){try{return JSON.parse(localStorage.getItem('sdb-reactions')||'{}');}catch{return {};}}
 function saveUserReactions(r){localStorage.setItem('sdb-reactions',JSON.stringify(r));}
-
 async function toggleReaction(postId,key,e){
   e&&e.stopPropagation();
-  const userR=getUserReactions();
-  const urKey=postId+'_'+key;
-  const rKey='r_'+postId+'_'+key;
-  if(userR[urKey]){
-    _cachedStats[rKey]=Math.max(0,(_cachedStats[rKey]||1)-1);
-    delete userR[urKey];
-  } else {
-    _cachedStats[rKey]=(_cachedStats[rKey]||0)+1;
-    userR[urKey]=1;
-  }
-  saveUserReactions(userR);
-  await saveStats();
-  // Update reaction bar in modal if open
-  const bar=document.getElementById('reactions-bar');
-  if(bar) renderReactionsBar(postId,bar);
-  // Update card if visible
-  const cardBar=document.getElementById('card-reactions-'+postId);
-  if(cardBar) renderCardReactions(postId,cardBar);
+  const userR=getUserReactions();const urKey=postId+'_'+key;const rKey='r_'+postId+'_'+key;
+  if(userR[urKey]){_cachedStats[rKey]=Math.max(0,(_cachedStats[rKey]||1)-1);delete userR[urKey];}
+  else{_cachedStats[rKey]=(_cachedStats[rKey]||0)+1;userR[urKey]=1;}
+  saveUserReactions(userR);await saveStats();
+  const bar=document.getElementById('reactions-bar');if(bar) renderReactionsBar(postId,bar);
+  const cb=document.getElementById('card-reactions-'+postId);if(cb) renderCardReactions(postId,cb);
 }
-
 function renderReactionsBar(postId,container){
   const userR=getUserReactions();
   container.innerHTML=REACTIONS.map(r=>{
-    const count=_cachedStats['r_'+postId+'_'+r.key]||0;
-    const active=userR[postId+'_'+r.key];
-    return `<button onclick="toggleReaction('${postId}','${r.key}',event)" style="background:${active?'rgba(255,255,255,.12)':'rgba(255,255,255,.04)'};border:1px solid ${active?'#666':'#333'};border-radius:20px;padding:7px 16px;cursor:pointer;color:#ccc;font-size:14px;display:flex;align-items:center;gap:7px;transition:.2s;font-family:'DM Sans',sans-serif">
-      ${r.emoji}<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#888">${count||''}</span>
-    </button>`;
+    const count=_cachedStats['r_'+postId+'_'+r.key]||0;const active=userR[postId+'_'+r.key];
+    return `<button onclick="toggleReaction('${postId}','${r.key}',event)" style="background:${active?'rgba(255,255,255,.12)':'rgba(255,255,255,.04)'};border:1px solid ${active?'#666':'#333'};border-radius:20px;padding:7px 16px;cursor:pointer;color:#ccc;font-size:14px;display:flex;align-items:center;gap:7px;transition:.2s">
+      ${r.emoji}<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#888">${count||''}</span></button>`;
   }).join('');
 }
-
 function renderCardReactions(postId,container){
-  const userR=getUserReactions();
-  const parts=REACTIONS.map(r=>{
-    const count=_cachedStats['r_'+postId+'_'+r.key]||0;
-    if(!count) return '';
-    return `<span style="font-size:12px">${r.emoji} ${count}</span>`;
-  }).filter(Boolean);
+  const parts=REACTIONS.map(r=>{const c=_cachedStats['r_'+postId+'_'+r.key]||0;return c?`<span style="font-size:11px">${r.emoji}${c}</span>`:''}).filter(Boolean);
   container.innerHTML=parts.join(' ');
 }
 
-// ── Commentaires ──
+/* ═══════════════════════════════
+   COMMENTAIRES
+═══════════════════════════════ */
 async function loadComments(postId){
-  try{
-    const {db,doc,getDoc}=await getDB();
-    const snap=await getDoc(doc(db,'securedb','comments'));
-    const all=snap.exists()?snap.data():{};
-    return all[postId]||[];
-  }catch{return [];}
+  try{const {db,doc,getDoc}=await getDB();const snap=await getDoc(doc(db,'securedb','comments'));const all=snap.exists()?snap.data():{};return all[postId]||[];}
+  catch{return [];}
 }
-
 async function postComment(postId){
-  const inp=document.getElementById('comment-input');
-  const text=(inp?.value||'').trim();
+  const inp=document.getElementById('comment-input');const text=(inp?.value||'').trim();
   if(!text){showToast('Write something first!');return;}
   inp.value='';inp.disabled=true;
   try{
-    const {db,doc,getDoc,setDoc}=await getDB();
-    const ref=doc(db,'securedb','comments');
-    const snap=await getDoc(ref);
-    const all=snap.exists()?snap.data():{};
+    const {db,doc,getDoc,setDoc}=await getDB();const ref=doc(db,'securedb','comments');
+    const snap=await getDoc(ref);const all=snap.exists()?snap.data():{};
     if(!all[postId]) all[postId]=[];
-    const comment={text,author:currentUser?currentUser.email.split('@')[0]:'Anonyme',at:new Date().toISOString()};
-    all[postId].push(comment);
-    await setDoc(ref,all);
-    renderCommentsList(all[postId]);
-    showToast('💬 Comment posted!');
+    all[postId].push({text,author:currentUser?currentUser.email.split('@')[0]:'Anonyme',at:new Date().toISOString()});
+    await setDoc(ref,all);renderCommentsList(all[postId]);showToast('💬 Comment posted!');
   }catch{showToast('Error posting comment.');}
   inp.disabled=false;inp.focus();
 }
-
 function renderCommentsList(comments){
-  const box=document.getElementById('comments-list');
-  if(!box) return;
-  if(!comments||!comments.length){
-    box.innerHTML='<div style="color:#555;font-size:12px;font-family:JetBrains Mono,monospace;text-align:center;padding:14px 0">No comments yet — be the first!</div>';
-    return;
-  }
+  const box=document.getElementById('comments-list');if(!box) return;
+  if(!comments||!comments.length){box.innerHTML='<div style="color:#555;font-size:12px;font-family:JetBrains Mono,monospace;text-align:center;padding:14px 0">No comments yet — be the first!</div>';return;}
   box.innerHTML=comments.map(c=>{
     const d=new Date(c.at).toLocaleDateString('en-US',{month:'short',day:'numeric'});
     return `<div style="padding:10px 0;border-bottom:1px solid #1e1e1e">
@@ -959,122 +897,226 @@ function renderCommentsList(comments){
   box.scrollTop=box.scrollHeight;
 }
 
-// ── Favoris ──
+/* ═══════════════════════════════
+   FAVORIS / PARTAGE / REPORT
+═══════════════════════════════ */
 function getFavorites(){try{return JSON.parse(localStorage.getItem('sdb-favorites')||'[]');}catch{return [];}}
 function toggleFavorite(postId,e){
   e&&e.stopPropagation();
-  let favs=getFavorites();
-  const idx=favs.indexOf(String(postId));
-  if(idx>=0) favs.splice(idx,1); else favs.push(String(postId));
+  let favs=getFavorites();const idx=favs.indexOf(String(postId));
+  if(idx>=0) favs.splice(idx,1);else favs.push(String(postId));
   localStorage.setItem('sdb-favorites',JSON.stringify(favs));
-  updateFavBtn(postId);
-  // re-render if on favorites tab
-  if(currentSort==='favorites') renderProfiles(document.getElementById('app-search').value||'');
+  updateFavBtn(postId);if(currentSort==='favorites') renderProfiles(document.getElementById('app-search').value||'');
 }
 function updateFavBtn(postId){
-  const btn=document.getElementById('fav-btn');
-  if(!btn) return;
+  const btn=document.getElementById('fav-btn');if(!btn) return;
   const isFav=getFavorites().includes(String(postId));
-  btn.textContent=isFav?'⭐ Saved':'☆ Save';
-  btn.style.color=isFav?'#f5c842':'#888';
-  btn.style.borderColor=isFav?'#f5c842':'#333';
+  btn.textContent=isFav?'⭐ Saved':'☆ Save';btn.style.color=isFav?'#f5c842':'#888';btn.style.borderColor=isFav?'#f5c842':'#333';
 }
-
-// ── Partage ──
 function sharePost(postId,e){
   e&&e.stopPropagation();
   const url=window.location.href.split('?')[0]+'?post='+postId;
-  navigator.clipboard.writeText(url).then(()=>showToast('🔗 Link copied!')).catch(()=>{
-    prompt('Copy this link:',url);
-  });
+  navigator.clipboard.writeText(url).then(()=>showToast('🔗 Link copied!')).catch(()=>prompt('Copy this link:',url));
 }
-
-// ── Report ──
 async function reportPost(postId,e){
   e&&e.stopPropagation();
   if(!confirm('Report this post as inappropriate?')) return;
   try{
+    const {db,doc,getDoc,setDoc}=await getDB();const ref=doc(db,'securedb','reports');
+    const snap=await getDoc(ref);const all=snap.exists()?snap.data():{};
+    all[postId]=(all[postId]||0)+1;await setDoc(ref,all);showToast('🚩 Post reported. Thank you!');
+  }catch{showToast('Error.');}
+}
+
+/* ═══════════════════════════════
+   BAN SYSTEM
+═══════════════════════════════ */
+async function checkBan(){
+  if(!currentUser) return;
+  try{
+    const {db,doc,getDoc}=await getDB();
+    const snap=await getDoc(doc(db,'securedb','bans'));
+    if(!snap.exists()) return;
+    const bans=snap.data();
+    const username=currentUser.email.split('@')[0].toLowerCase();
+    const email=currentUser.email.toLowerCase();
+    const banData=bans[email]||bans[username];
+    if(banData){
+      showBanScreen(banData.reason||'No reason provided.');
+    }
+  }catch(e){}
+}
+
+function showBanScreen(reason){
+  document.body.innerHTML=`
+    <div style="background:#0c0c0c;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:'DM Sans',sans-serif">
+      <div style="font-size:64px;margin-bottom:24px">🔒</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:clamp(42px,8vw,80px);color:#c0392b;letter-spacing:4px;line-height:1;margin-bottom:20px">YOU ARE BANNED</div>
+      <div style="color:#888;font-size:14px;font-family:'JetBrains Mono',monospace;margin-bottom:8px">One of our moderators banned you for the following reason:</div>
+      <div style="color:#e8e8e8;font-size:16px;background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:14px 24px;margin-bottom:24px;max-width:480px;font-style:italic">"${esc(reason)}"</div>
+      <div style="color:#666;font-size:13px;font-family:'JetBrains Mono',monospace;margin-bottom:10px">If you want to appeal your ban, contact us in the communication server.</div>
+      <a href="https://discord.gg/5tJk68mFJ2" target="_blank" rel="noopener"
+        style="color:#5865F2;font-size:13px;font-family:'JetBrains Mono',monospace;text-decoration:none;border:1px solid #5865F2;border-radius:8px;padding:8px 20px;transition:.2s">
+        🔗 discord.gg/5tJk68mFJ2
+      </a>
+    </div>`;
+}
+
+async function banUser(identifier,reason){
+  try{
     const {db,doc,getDoc,setDoc}=await getDB();
-    const ref=doc(db,'securedb','reports');
-    const snap=await getDoc(ref);
-    const all=snap.exists()?snap.data():{};
-    all[postId]=(all[postId]||0)+1;
-    await setDoc(ref,all);
-    showToast('🚩 Post reported. Thank you!');
-  }catch{showToast('Error reporting post.');}
+    const ref=doc(db,'securedb','bans');
+    const snap=await getDoc(ref);const all=snap.exists()?snap.data():{};
+    all[identifier.toLowerCase()]={reason:reason||'Banned by moderator.',at:new Date().toISOString()};
+    await setDoc(ref,all);showToast(`🔨 ${identifier} banned.`);
+  }catch{showToast('Error banning user.');}
+}
+
+async function unbanUser(identifier){
+  try{
+    const {db,doc,getDoc,setDoc}=await getDB();
+    const ref=doc(db,'securedb','bans');
+    const snap=await getDoc(ref);if(!snap.exists()) return;
+    const all=snap.data();delete all[identifier.toLowerCase()];
+    await setDoc(ref,all);showToast(`✅ ${identifier} unbanned.`);
+  }catch{showToast('Error.');}
+}
+
+/* ═══════════════════════════════
+   ANNONCES ADMIN (durée 1h)
+═══════════════════════════════ */
+async function loadAnnouncement(){
+  try{
+    const {db,doc,getDoc}=await getDB();
+    const snap=await getDoc(doc(db,'securedb','announcement'));
+    if(!snap.exists()) return;
+    const data=snap.data();
+    if(!data.text||!data.expiresAt) return;
+    if(new Date(data.expiresAt)<new Date()) return; // expired
+    showAnnouncement(data.text,data.expiresAt);
+  }catch{}
+}
+
+function showAnnouncement(text,expiresAt){
+  const existing=document.getElementById('announcement-bar');
+  if(existing) existing.remove();
+  const bar=document.createElement('div');
+  bar.id='announcement-bar';
+  const msLeft=new Date(expiresAt)-new Date();
+  if(msLeft<=0) return;
+  bar.style.cssText='background:linear-gradient(90deg,#1a1200,#2a1f00);border-bottom:1px solid #4a3800;padding:11px 24px;display:flex;align-items:center;justify-content:center;gap:12px;position:relative;z-index:60;animation:slideDown .4s ease';
+  bar.innerHTML=`
+    <span style="font-size:16px">📢</span>
+    <span style="font-size:13px;color:#f0c040;font-family:'DM Sans',sans-serif;flex:1;text-align:center;max-width:700px">${esc(text)}</span>
+    <span id="ann-timer" style="font-size:11px;color:#8a6a00;font-family:'JetBrains Mono',monospace;white-space:nowrap"></span>
+    <button onclick="document.getElementById('announcement-bar').remove()" style="background:none;border:none;color:#5a4a00;cursor:pointer;font-size:16px;padding:0 4px">✕</button>`;
+  // Insert after app-nav
+  const appNav=document.querySelector('.app-nav');
+  if(appNav&&appNav.parentNode) appNav.parentNode.insertBefore(bar,appNav.nextSibling);
+  else document.body.prepend(bar);
+  // Countdown timer
+  const timerEl=document.getElementById('ann-timer');
+  const interval=setInterval(()=>{
+    const left=new Date(expiresAt)-new Date();
+    if(left<=0){bar.remove();clearInterval(interval);return;}
+    const m=Math.floor(left/60000);const s=Math.floor((left%60000)/1000);
+    if(timerEl) timerEl.textContent=`${m}m ${s}s`;
+  },1000);
+}
+
+async function postAnnouncement(text){
+  if(!text.trim()) return;
+  const expiresAt=new Date(Date.now()+3600000).toISOString(); // +1h
+  try{
+    const {db,doc,setDoc}=await getDB();
+    await setDoc(doc(db,'securedb','announcement'),{text:text.trim(),expiresAt,postedAt:new Date().toISOString()});
+    showAnnouncement(text,expiresAt);
+    showToast('📢 Announcement posted for 1h!');
+  }catch{showToast('Error posting announcement.');}
+}
+
+/* ═══════════════════════════════
+   ADMIN PANEL
+═══════════════════════════════ */
+function isAdmin(){return currentUser&&currentUser.email===ADMIN_EMAIL;}
+
+function openAdminPanel(){
+  if(!isAdmin()) return;
+  document.getElementById('admin-modal').style.display='flex';
+  loadAdminBans();
+}
+function closeAdminPanel(){document.getElementById('admin-modal').style.display='none';}
+
+async function loadAdminBans(){
+  try{
+    const {db,doc,getDoc}=await getDB();
+    const snap=await getDoc(doc(db,'securedb','bans'));
+    const bans=snap.exists()?snap.data():{};
+    const list=document.getElementById('admin-bans-list');
+    const entries=Object.entries(bans);
+    if(!entries.length){list.innerHTML='<div style="color:#555;font-size:12px;font-family:JetBrains Mono,monospace;padding:10px 0">No bans.</div>';return;}
+    list.innerHTML=entries.map(([id,data])=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1e1e1e">
+        <div>
+          <div style="font-size:13px;color:#e8e8e8;font-family:'JetBrains Mono',monospace">${esc(id)}</div>
+          <div style="font-size:11px;color:#666;margin-top:2px">${esc(data.reason||'')}</div>
+        </div>
+        <button onclick="adminUnban('${esc(id)}')" style="background:none;border:1px solid #333;border-radius:6px;color:#888;padding:4px 10px;cursor:pointer;font-size:11px;font-family:'JetBrains Mono',monospace">Unban</button>
+      </div>`).join('');
+  }catch{}
+}
+
+async function adminUnban(id){
+  await unbanUser(id);await loadAdminBans();
+}
+
+async function adminDeletePost(postId){
+  if(!isAdmin()) return;
+  if(!confirm('Delete this post?')) return;
+  allProfiles=allProfiles.filter(p=>String(p.id)!==String(postId));
+  shuffledProfiles=shuffledProfiles.filter(p=>String(p.id)!==String(postId));
+  await saveProfilesDB(allProfiles);
+  closeModal();renderProfiles(document.getElementById('app-search').value||'');
+  showToast('🗑️ Post deleted.');
 }
 
 /* ═══════════════════════════════
    SORT BAR
 ═══════════════════════════════ */
 let currentSort='shuffle';
-
 function ensureSortBar(){
   if(document.getElementById('sort-bar')) return;
-  const wrap=document.getElementById('view-browse');
-  if(!wrap) return;
-  const bar=document.createElement('div');
-  bar.id='sort-bar';
+  const wrap=document.getElementById('view-browse');if(!wrap) return;
+  const bar=document.createElement('div');bar.id='sort-bar';
   bar.style.cssText='display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap;align-items:center';
-  const sorts=[
-    {key:'shuffle',label:'🔀 Shuffle'},
-    {key:'recent',label:'🕐 Recent'},
-    {key:'popular',label:'🏆 Popular'},
-    {key:'views',label:'👁️ Views'},
-    {key:'trending',label:'🔥 Trending 24h'},
-    {key:'favorites',label:'⭐ Saved'},
-  ];
+  const sorts=[{key:'shuffle',label:'🔀 Shuffle'},{key:'recent',label:'🕐 Recent'},
+    {key:'popular',label:'🏆 Popular'},{key:'views',label:'👁️ Views'},
+    {key:'trending',label:'🔥 Trending 24h'},{key:'favorites',label:'⭐ Saved'}];
   bar.innerHTML='<span style="font-size:10px;color:#555;letter-spacing:2px;text-transform:uppercase;font-family:JetBrains Mono,monospace;margin-right:4px;white-space:nowrap">SORT:</span>'+
     sorts.map(s=>`<button id="sort-${s.key}" onclick="setSort('${s.key}')" style="background:rgba(255,255,255,.04);border:1px solid #333;border-radius:20px;padding:5px 13px;font-size:12px;color:#555;font-family:'JetBrains Mono',monospace;cursor:pointer;transition:.2s;white-space:nowrap">${s.label}</button>`).join('');
-  const searchBar=wrap.querySelector('.search-bar');
-  wrap.insertBefore(bar,searchBar);
-  updateSortBar();
+  const searchBar=wrap.querySelector('.search-bar');wrap.insertBefore(bar,searchBar);updateSortBar();
 }
-
 function updateSortBar(){
   ['shuffle','recent','popular','views','trending','favorites'].forEach(k=>{
-    const btn=document.getElementById('sort-'+k);
-    if(!btn) return;
+    const btn=document.getElementById('sort-'+k);if(!btn) return;
     const active=k===currentSort;
-    btn.style.color=active?'#e8e8e8':'#555';
-    btn.style.borderColor=active?'#666':'#333';
+    btn.style.color=active?'#e8e8e8':'#555';btn.style.borderColor=active?'#666':'#333';
     btn.style.background=active?'rgba(255,255,255,.1)':'rgba(255,255,255,.04)';
   });
 }
-
-function setSort(key){
-  currentSort=key;
-  updateSortBar();
-  renderProfiles(document.getElementById('app-search').value||'');
-}
-
+function setSort(key){currentSort=key;updateSortBar();renderProfiles(document.getElementById('app-search').value||'');}
 function getSortedList(list){
-  const favs=getFavorites();
   switch(currentSort){
-    case 'recent':
-      return [...list].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-    case 'popular':
-      return [...list].sort((a,b)=>{
-        const sB=REACTIONS.reduce((s,r)=>s+(_cachedStats['r_'+b.id+'_'+r.key]||0),0);
-        const sA=REACTIONS.reduce((s,r)=>s+(_cachedStats['r_'+a.id+'_'+r.key]||0),0);
-        return sB-sA;
-      });
-    case 'views':
-      return [...list].sort((a,b)=>(_cachedStats['v_'+b.id]||0)-(_cachedStats['v_'+a.id]||0));
+    case 'recent': return [...list].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+    case 'popular': return [...list].sort((a,b)=>REACTIONS.reduce((s,r)=>s+(_cachedStats['r_'+b.id+'_'+r.key]||0),0)-REACTIONS.reduce((s,r)=>s+(_cachedStats['r_'+a.id+'_'+r.key]||0),0));
+    case 'views': return [...list].sort((a,b)=>(_cachedStats['v_'+b.id]||0)-(_cachedStats['v_'+a.id]||0));
     case 'trending':{
-      const now=Date.now(),h24=86400000;
-      return [...list]
-        .filter(p=>now-new Date(p.createdAt).getTime()<h24)
-        .sort((a,b)=>{
-          const sB=REACTIONS.reduce((s,r)=>s+(_cachedStats['r_'+b.id+'_'+r.key]||0),0)+(_cachedStats['v_'+b.id]||0);
-          const sA=REACTIONS.reduce((s,r)=>s+(_cachedStats['r_'+a.id+'_'+r.key]||0),0)+(_cachedStats['v_'+a.id]||0);
-          return sB-sA;
-        });
+      const now=Date.now();
+      return [...list].filter(p=>now-new Date(p.createdAt).getTime()<86400000)
+        .sort((a,b)=>(REACTIONS.reduce((s,r)=>s+(_cachedStats['r_'+b.id+'_'+r.key]||0),0)+(_cachedStats['v_'+b.id]||0))-(REACTIONS.reduce((s,r)=>s+(_cachedStats['r_'+a.id+'_'+r.key]||0),0)+(_cachedStats['v_'+a.id]||0)));
     }
-    case 'favorites':
-      return list.filter(p=>favs.includes(String(p.id)));
-    default:
-      return list;
+    case 'favorites': return list.filter(p=>getFavorites().includes(String(p.id)));
+    default: return list;
   }
 }
 
@@ -1086,14 +1128,10 @@ function goApp(tab){
   document.getElementById('app').classList.add('active');
   switchTab(tab||'browse');
 }
-function goLanding(){
-  document.getElementById('app').classList.remove('active');
-  document.getElementById('landing').classList.add('active');
-}
+function goLanding(){document.getElementById('app').classList.remove('active');document.getElementById('landing').classList.add('active');}
 function doLandingSearch(){
   const q=document.getElementById('landing-search').value.trim();
-  goApp('browse');
-  setTimeout(()=>{const s=document.getElementById('app-search');if(s){s.value=q;filterProfiles(q);}},80);
+  goApp('browse');setTimeout(()=>{const s=document.getElementById('app-search');if(s){s.value=q;filterProfiles(q);}},80);
 }
 
 /* ═══════════════════════════════
@@ -1101,100 +1139,64 @@ function doLandingSearch(){
 ═══════════════════════════════ */
 async function switchTab(tab){
   ['browse','create','contact'].forEach(t=>{
-    const v=document.getElementById('view-'+t);
-    const b=document.getElementById('tab-'+t);
-    if(v) v.style.display=t===tab?'block':'none';
-    if(b) b.classList.toggle('active',t===tab);
+    const v=document.getElementById('view-'+t);const b=document.getElementById('tab-'+t);
+    if(v) v.style.display=t===tab?'block':'none';if(b) b.classList.toggle('active',t===tab);
   });
   if(tab==='browse'){await loadAllProfiles();renderCategories(shuffledProfiles);renderProfiles();}
+  // Show admin tab button if admin
+  const adminBtn=document.getElementById('tab-admin');
+  if(adminBtn) adminBtn.style.display=isAdmin()?'inline-flex':'none';
 }
 
 /* ═══════════════════════════════
    PROFILES
 ═══════════════════════════════ */
-let profilesLoaded=false;
-let shuffledProfiles=[];
-let activeCategory='';
+let profilesLoaded=false,shuffledProfiles=[],activeCategory='';
 
 function getSessionShuffle(arr){
-  const KEY='sdb-shuffle-seed';
-  let seed=sessionStorage.getItem(KEY);
+  const KEY='sdb-shuffle-seed';let seed=sessionStorage.getItem(KEY);
   if(!seed){seed=Math.random().toString(36).slice(2);sessionStorage.setItem(KEY,seed);}
   let s=0;for(let i=0;i<seed.length;i++)s=(s*31+seed.charCodeAt(i))>>>0;
   const rng=()=>{s=(s^(s<<13))>>>0;s=(s^(s>>17))>>>0;s=(s^(s<<5))>>>0;return s/0xFFFFFFFF;};
-  const a=[...arr];
-  for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
   return a;
 }
-
 function extractKeywords(p){
-  const words=[];
   const texts=[p.name||'',p.title||'',p.bio||'',p.game||'',p.music||'',p.city||'',p.country||'',...(p.hobbies||[])];
+  const words=[];
   texts.join(' ').split(/[\s,\.\-_\/\|:;!?()\[\]"']+/).forEach(w=>{
-    const clean=w.toLowerCase().replace(/[^a-zéàèùâêîôûçäëïöü]/gi,'');
-    if(clean.length>=3&&clean.length<=20) words.push(clean);
+    const c=w.toLowerCase().replace(/[^a-zéàèùâêîôûçäëïöü]/gi,'');
+    if(c.length>=3&&c.length<=20) words.push(c);
   });
   return words;
 }
-
 const CAT_MIN=3;
-const STOP_WORDS=new Set([
-  'the','and','for','with','from','that','this','was','are','not','has','have','been',
-  'its','our','you','your','him','her','they','them','who','what','when','where','how',
-  'just','like','more','some','than','then','into','only','also','both','each','here',
-  'there','these','those','will','would','could','should','very','about','after','before',
-  'les','des','une','pour','dans','sur','avec','par','qui','est','pas','que','son','ses',
-  'ils','elles','mais','donc','car','tout','plus','bien','aussi','même','puis','moi','toi',
-  'lui','nous','vous','leur','leurs','mon','ton','van','deux','trois','tous','toute',
-  'cette','cela','oui','non','très','peu','trop','déjà','encore','toujours','jamais',
-  'www','http','https','html','css','com','net','org','php','json','xml','txt','pdf',
-  'null','true','false','undefined','function','return','const','let','var','class','new',
-  'div','span','img','src','href','style','width','height','type','name','data','file',
-  'connexion','connection','loading','error','default','index','admin',
-  'post','posts','user','users','date','time','list','item','page','site','text','link',
-  'view','edit','add','old','all','any','few','own','off','out','use','get','set',
-]);
-
+const STOP_WORDS=new Set(['the','and','for','with','from','that','this','was','are','not','has','have','been','its','our','you','your','him','her','they','them','who','what','when','where','how','just','like','more','some','than','then','into','only','also','both','each','here','there','these','those','will','would','could','should','very','about','after','before','les','des','une','pour','dans','sur','avec','par','qui','est','pas','que','son','ses','ils','elles','mais','donc','car','tout','plus','bien','aussi','même','puis','moi','toi','lui','nous','vous','leur','leurs','mon','ton','van','deux','trois','tous','toute','cette','cela','oui','non','très','peu','trop','déjà','encore','toujours','jamais','www','http','https','html','css','com','net','org','php','json','xml','txt','pdf','null','true','false','undefined','function','return','const','let','var','class','new','div','span','img','src','href','style','width','height','type','name','data','file','connexion','connection','loading','error','default','index','admin','post','posts','user','users','date','time','list','item','page','site','text','link','view','edit','add','old','all','any','few','own','off','out','use','get','set']);
 function buildCategories(profiles){
   const freq={};
-  profiles.forEach(p=>{
-    const seen=new Set();
-    extractKeywords(p).forEach(w=>{if(!STOP_WORDS.has(w)&&!seen.has(w)){seen.add(w);freq[w]=(freq[w]||0)+1;}});
-  });
+  profiles.forEach(p=>{const seen=new Set();extractKeywords(p).forEach(w=>{if(!STOP_WORDS.has(w)&&!seen.has(w)){seen.add(w);freq[w]=(freq[w]||0)+1;}});});
   return Object.entries(freq).filter(([,c])=>c>=CAT_MIN).sort((a,b)=>b[1]-a[1]).slice(0,20).map(([w,c])=>({word:w,count:c}));
 }
-
 function renderCategories(profiles){
-  const cats=buildCategories(profiles);
-  const wrap=document.getElementById('categories-wrap');
-  const btns=document.getElementById('cat-btns');
-  if(!cats.length){wrap.style.display='none';return;}
-  wrap.style.display='flex';btns.innerHTML='';
-  const allBtn=document.createElement('button');
-  allBtn.className='cat-btn'+(activeCategory===''?' active':'');
-  allBtn.textContent='✦ All';
-  allBtn.onclick=()=>{activeCategory='';renderCategories(profiles);renderProfiles(document.getElementById('app-search').value||'');};
-  btns.appendChild(allBtn);
+  const cats=buildCategories(profiles);const wrap=document.getElementById('categories-wrap');const btns=document.getElementById('cat-btns');
+  if(!cats.length){wrap.style.display='none';return;}wrap.style.display='flex';btns.innerHTML='';
+  const allBtn=document.createElement('button');allBtn.className='cat-btn'+(activeCategory===''?' active':'');allBtn.textContent='✦ All';
+  allBtn.onclick=()=>{activeCategory='';renderCategories(profiles);renderProfiles(document.getElementById('app-search').value||'');};btns.appendChild(allBtn);
   cats.forEach(({word,count})=>{
-    const btn=document.createElement('button');
-    btn.className='cat-btn'+(activeCategory===word?' active':'');
-    btn.textContent=word.toUpperCase()+' ('+count+')';
-    btn.onclick=()=>{activeCategory=activeCategory===word?'':word;renderCategories(profiles);renderProfiles(document.getElementById('app-search').value||'');};
-    btns.appendChild(btn);
+    const btn=document.createElement('button');btn.className='cat-btn'+(activeCategory===word?' active':'');btn.textContent=word.toUpperCase()+' ('+count+')';
+    btn.onclick=()=>{activeCategory=activeCategory===word?'':word;renderCategories(profiles);renderProfiles(document.getElementById('app-search').value||'');};btns.appendChild(btn);
   });
 }
-
 async function loadAllProfiles(){
   if(profilesLoaded) return;
   const grid=document.getElementById('profiles-grid');
   grid.innerHTML='<div class="spinner"></div>';
-  allProfiles=await loadProfilesDB();
-  await loadStats();
-  shuffledProfiles=getSessionShuffle(allProfiles);
-  profilesLoaded=true;
-  const sc=document.getElementById('stat-count');
-  if(sc) sc.textContent=allProfiles.length;
+  allProfiles=await loadProfilesDB();await loadStats();
+  shuffledProfiles=getSessionShuffle(allProfiles);profilesLoaded=true;
+  const sc=document.getElementById('stat-count');if(sc) sc.textContent=allProfiles.length;
 }
+
+function isNewPost(p){return Date.now()-new Date(p.createdAt).getTime()<86400000;}
 
 function renderProfiles(filter=''){
   ensureSortBar();
@@ -1204,117 +1206,88 @@ function renderProfiles(filter=''){
   const q=(filter||'').toLowerCase().trim();
   let list=shuffledProfiles;
   if(activeCategory) list=list.filter(p=>extractKeywords(p).includes(activeCategory));
-  if(q){
-    list=list.filter(p=>{
-      const parts=[p.name||'',p.city||'',p.country||'',p.bio||'',p.mbti||'',p.languages||'',p.music||'',p.game||'',p.gender||'',p.title||'',p.fileName||'',(p.fileContent||'').slice(0,1000),...(p.hobbies||[])];
-      return parts.join(' ').toLowerCase().includes(q);
-    });
-  }
+  if(q){list=list.filter(p=>{const parts=[p.name||'',p.city||'',p.country||'',p.bio||'',p.mbti||'',p.languages||'',p.music||'',p.game||'',p.gender||'',p.title||'',p.fileName||'',(p.fileContent||'').slice(0,1000),...(p.hobbies||[])];return parts.join(' ').toLowerCase().includes(q);});}
   list=getSortedList(list);
   const favs=getFavorites();
   if(!list.length){
-    const emptyMsg=currentSort==='favorites'?'No saved posts yet — click ☆ on any post!':
-      currentSort==='trending'?'No trending posts in the last 24h':
-      q||activeCategory?`No results for "${esc(activeCategory||q)}"`:
-      'No posts yet — be the first!';
-    const emptyIcon=currentSort==='favorites'?'⭐':currentSort==='trending'?'🔥':q||activeCategory?'🔍':'👋';
-    grid.innerHTML=`<div class="empty-state"><span class="empty-icon">${emptyIcon}</span><div class="empty-text">${emptyMsg}</div></div>`;
-    return;
+    const msg=currentSort==='favorites'?'No saved posts yet — click ☆ on any post!':currentSort==='trending'?'No trending posts in the last 24h':q||activeCategory?`No results for "${esc(activeCategory||q)}"`:' No posts yet — be the first!';
+    const icon=currentSort==='favorites'?'⭐':currentSort==='trending'?'🔥':q||activeCategory?'🔍':'👋';
+    grid.innerHTML=`<div class="empty-state"><span class="empty-icon">${icon}</span><div class="empty-text">${msg}</div></div>`;return;
   }
   grid.innerHTML='';
   list.forEach((p,i)=>{
-    const el=document.createElement('div');
-    el.className='profile-card';
-    el.style.animationDelay=(i*45)+'ms';
+    const el=document.createElement('div');el.className='profile-card';el.style.animationDelay=(i*45)+'ms';
     const date=new Date(p.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
     const views=_cachedStats['v_'+p.id]||0;
-    const totalR=REACTIONS.reduce((s,r)=>s+(_cachedStats['r_'+p.id+'_'+r.key]||0),0);
     const isFav=favs.includes(String(p.id));
+    const isNew=isNewPost(p);
+    const newBadge=isNew?`<span style="background:linear-gradient(135deg,#1a3a1a,#0d220d);border:1px solid #2d6b2d;border-radius:20px;padding:2px 8px;font-size:10px;color:#5adb5a;font-family:'JetBrains Mono',monospace;letter-spacing:1px">NEW</span>`:'';
     const statsRow=`<div style="display:flex;gap:8px;align-items:center;font-size:11px;color:#555;font-family:'JetBrains Mono',monospace;margin-bottom:8px">
-      ${views?`<span>👁️ ${views}</span>`:''}
-      <span id="card-reactions-${p.id}" style="display:flex;gap:6px"></span>
+      ${newBadge}${views?`<span>👁️ ${views}</span>`:''}
+      <span id="card-reactions-${p.id}" style="display:flex;gap:6px"></span></div>`;
+    const actionBtns=`<div style="position:absolute;top:12px;right:12px;display:flex;gap:5px;z-index:2">
+      <button onclick="toggleFavorite('${p.id}',event)" style="background:none;border:none;color:${isFav?'#f5c842':'#444'};font-size:14px;cursor:pointer;padding:2px 4px" title="Save">${isFav?'⭐':'☆'}</button>
+      <button onclick="sharePost('${p.id}',event)" style="background:none;border:none;color:#444;font-size:13px;cursor:pointer;padding:2px 4px" title="Share">🔗</button>
+      ${isAdmin()?`<button onclick="adminDeletePost('${p.id}')" style="background:none;border:none;color:#c0392b;font-size:13px;cursor:pointer;padding:2px 4px" title="Delete">🗑️</button>`:''}
     </div>`;
     if(p.type==='file'){
-      const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};
-      const icon=icons[p.fileExt||'.txt']||'📄';
-      const preview=(p.fileContent||'').slice(0,120).replace(/\n/g,' ');
-      const lineCount=(p.fileContent||'').split('\n').length;
-      el.innerHTML=`
-        <div style="position:absolute;top:12px;right:12px;display:flex;gap:6px;z-index:2">
-          <button onclick="toggleFavorite('${p.id}',event)" style="background:none;border:none;color:${isFav?'#f5c842':'#444'};font-size:14px;cursor:pointer;padding:2px 4px" title="Save">${isFav?'⭐':'☆'}</button>
-          <button onclick="sharePost('${p.id}',event)" style="background:none;border:none;color:#444;font-size:13px;cursor:pointer;padding:2px 4px" title="Share">🔗</button>
-        </div>
-        <div class="card-top">
-          <div class="avatar" style="font-size:26px"><span>${icon}</span></div>
-          <div><div class="card-name">${esc(p.title||'Untitled')}</div><div class="card-meta">${esc(p.fileName||'')} · ${lineCount} lines</div></div>
-        </div>
-        ${statsRow}
-        <div class="card-bio">${esc(preview)}${(p.fileContent||'').length>120?'…':''}</div>
+      const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};const icon=icons[p.fileExt||'.txt']||'📄';
+      const preview=(p.fileContent||'').slice(0,120).replace(/\n/g,' ');const lineCount=(p.fileContent||'').split('\n').length;
+      el.innerHTML=`${actionBtns}
+        <div class="card-top"><div class="avatar" style="font-size:26px"><span>${icon}</span></div>
+          <div><div class="card-name">${esc(p.title||'Untitled')}</div><div class="card-meta">${esc(p.fileName||'')} · ${lineCount} lines</div></div></div>
+        ${statsRow}<div class="card-bio">${esc(preview)}${(p.fileContent||'').length>120?'…':''}</div>
         <div class="card-footer"><div class="card-date">${date} · <span style="cursor:pointer;text-decoration:underline;color:#666" onclick="viewUserPosts('${esc(p.postedBy||'Anonyme')}',event)">${esc(p.postedBy||'Anonyme')}</span></div><div class="card-arrow">→</div></div>`;
     } else {
       const av=p.emoji?`<span>${p.emoji}</span>`:`<span>${(p.name||'?').slice(0,2).toUpperCase()}</span>`;
       const avc=p.emoji?'avatar':'avatar initials';
-      let meta=[];
-      if(p.age) meta.push(p.age+'yo');
-      if(p.city||p.country) meta.push([p.city,p.country].filter(Boolean).join(', '));
-      if(p.gender) meta.push(p.gender);
+      let meta=[];if(p.age) meta.push(p.age+'yo');if(p.city||p.country) meta.push([p.city,p.country].filter(Boolean).join(', '));if(p.gender) meta.push(p.gender);
       const bio=p.bio?`<div class="card-bio">${esc(p.bio)}</div>`:'';
-      const hobbies=(p.hobbies||[]).slice(0,3);
-      const chips=hobbies.length?`<div class="card-chips">${hobbies.map(h=>`<div class="chip">${esc(h)}</div>`).join('')}</div>`:'';
-      el.innerHTML=`
-        <div style="position:absolute;top:12px;right:12px;display:flex;gap:6px;z-index:2">
-          <button onclick="toggleFavorite('${p.id}',event)" style="background:none;border:none;color:${isFav?'#f5c842':'#444'};font-size:14px;cursor:pointer;padding:2px 4px" title="Save">${isFav?'⭐':'☆'}</button>
-          <button onclick="sharePost('${p.id}',event)" style="background:none;border:none;color:#444;font-size:13px;cursor:pointer;padding:2px 4px" title="Share">🔗</button>
-        </div>
-        <div class="card-top">
-          <div class="${avc}">${av}</div>
-          <div><div class="card-name">${esc(p.name||'—')}</div><div class="card-meta">${meta.join(' · ')}</div></div>
-        </div>
-        ${statsRow}
-        ${bio}${chips}
+      const chips=(p.hobbies||[]).slice(0,3);const chipsHtml=chips.length?`<div class="card-chips">${chips.map(h=>`<div class="chip">${esc(h)}</div>`).join('')}</div>`:'';
+      el.innerHTML=`${actionBtns}
+        <div class="card-top"><div class="${avc}">${av}</div>
+          <div><div class="card-name">${esc(p.name||'—')}</div><div class="card-meta">${meta.join(' · ')}</div></div></div>
+        ${statsRow}${bio}${chipsHtml}
         <div class="card-footer"><div class="card-date">${date} · <span style="cursor:pointer;text-decoration:underline;color:#666" onclick="viewUserPosts('${esc(p.postedBy||'Anonyme')}',event)">${esc(p.postedBy||'Anonyme')}</span></div><div class="card-arrow">→</div></div>`;
     }
     el.onclick=()=>p.type==='file'?openFileModal(p):openModal(p);
     grid.appendChild(el);
-    // Render reaction counts on card
-    const cardBar=document.getElementById('card-reactions-'+p.id);
-    if(cardBar) renderCardReactions(p.id,cardBar);
+    const cb=document.getElementById('card-reactions-'+p.id);if(cb) renderCardReactions(p.id,cb);
   });
 }
 
-function onSearchInput(v){
-  activeCategory='';
-  renderCategories(shuffledProfiles);
-  renderProfiles(v);
-}
-async function filterProfiles(v){
-  if(!profilesLoaded) await loadAllProfiles();
-  renderCategories(shuffledProfiles);
-  renderProfiles(v);
-}
+function onSearchInput(v){activeCategory='';renderCategories(shuffledProfiles);renderProfiles(v);}
+async function filterProfiles(v){if(!profilesLoaded) await loadAllProfiles();renderCategories(shuffledProfiles);renderProfiles(v);}
 
 function viewUserPosts(author,e){
   e&&e.stopPropagation();
-  document.getElementById('app-search').value='';
-  activeCategory='';
-  currentSort='recent';
-  updateSortBar();
-  const sub=document.getElementById('profile-count-label');
+  document.getElementById('app-search').value='';activeCategory='';currentSort='recent';updateSortBar();
   const filtered=allProfiles.filter(p=>(p.postedBy||'Anonyme')===author);
-  if(sub) sub.textContent=`Posts by @${author} — ${filtered.length}`;
-  const grid=document.getElementById('profiles-grid');
-  const favs=getFavorites();
-  if(!filtered.length){grid.innerHTML=`<div class="empty-state"><span class="empty-icon">👤</span><div class="empty-text">No posts from @${esc(author)}</div></div>`;return;}
-  // temporarily override shuffledProfiles for render
-  const prev=shuffledProfiles;
-  shuffledProfiles=filtered;
-  renderProfiles();
-  shuffledProfiles=prev;
+  const sub=document.getElementById('profile-count-label');if(sub) sub.textContent=`Posts by @${author} — ${filtered.length}`;
+  const prev=shuffledProfiles;shuffledProfiles=filtered;renderProfiles();shuffledProfiles=prev;
 }
 
 /* ═══════════════════════════════
-   MODAL — Profile
+   MODALS
 ═══════════════════════════════ */
+function modalActionBar(p){
+  const isFav=getFavorites().includes(String(p.id));const views=(_cachedStats['v_'+p.id]||0)+1;
+  return `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+    <button id="fav-btn" onclick="toggleFavorite('${p.id}',event)" style="background:none;border:1px solid ${isFav?'#f5c842':'#333'};border-radius:20px;color:${isFav?'#f5c842':'#888'};padding:6px 14px;cursor:pointer;font-size:13px">${isFav?'⭐ Saved':'☆ Save'}</button>
+    <button onclick="sharePost('${p.id}',event)" style="background:none;border:1px solid #333;border-radius:20px;color:#888;padding:6px 14px;cursor:pointer;font-size:13px">🔗 Share</button>
+    <button onclick="reportPost('${p.id}',event)" style="background:none;border:1px solid #333;border-radius:20px;color:#666;padding:6px 12px;cursor:pointer;font-size:12px">🚩 Report</button>
+    ${isAdmin()?`<button onclick="adminDeletePost('${p.id}')" style="background:none;border:1px solid #c0392b;border-radius:20px;color:#c0392b;padding:6px 12px;cursor:pointer;font-size:12px">🗑️ Delete</button>
+    <button onclick="promptBanUser('${esc(p.postedBy||'Anonyme')}')" style="background:none;border:1px solid #8e2020;border-radius:20px;color:#8e2020;padding:6px 12px;cursor:pointer;font-size:12px">🔨 Ban</button>`:''}
+    <span style="font-size:11px;color:#444;font-family:'JetBrains Mono',monospace;padding:6px 0">👁️ ${views}</span>
+  </div>`;
+}
+
+function promptBanUser(username){
+  const reason=prompt(`Ban reason for @${username}:`);
+  if(reason===null) return;
+  banUser(username,reason||'Banned by moderator.');
+}
+
 async function openModal(p){
   const und=`<span class="modal-field-value undef">${undefinedLabel}</span>`;
   const val=v=>v?`<div class="modal-field-value">${esc(String(v))}</div>`:und;
@@ -1322,175 +1295,108 @@ async function openModal(p){
   const avc=p.emoji?'modal-avatar':'modal-avatar initials';
   const date=new Date(p.createdAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
   const hobbies=(p.hobbies||[]).filter(Boolean);
-  const isFav=getFavorites().includes(String(p.id));
-  const views=(_cachedStats['v_'+p.id]||0)+1;
-
   document.getElementById('modal-content').innerHTML=`
     <div class="modal-header">
       <button class="modal-close" onclick="closeModal()">✕</button>
       <div class="${avc}">${av}</div>
       <div class="modal-name">${esc(p.name||'—')}</div>
       <div class="modal-joined">Joined · ${date}</div>
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-        <button id="fav-btn" onclick="toggleFavorite('${p.id}',event)" style="background:none;border:1px solid ${isFav?'#f5c842':'#333'};border-radius:20px;color:${isFav?'#f5c842':'#888'};padding:6px 14px;cursor:pointer;font-size:13px;transition:.2s">${isFav?'⭐ Saved':'☆ Save'}</button>
-        <button onclick="sharePost('${p.id}',event)" style="background:none;border:1px solid #333;border-radius:20px;color:#888;padding:6px 14px;cursor:pointer;font-size:13px;transition:.2s">🔗 Share</button>
-        <button onclick="reportPost('${p.id}',event)" style="background:none;border:1px solid #333;border-radius:20px;color:#666;padding:6px 14px;cursor:pointer;font-size:12px;transition:.2s">🚩 Report</button>
-        <span style="font-size:11px;color:#444;font-family:'JetBrains Mono',monospace;padding:6px 0">👁️ ${views} views</span>
-      </div>
+      ${modalActionBar(p)}
       <div id="reactions-bar" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"></div>
     </div>
     <div class="modal-body">
-      <div class="modal-section">
-        <div class="modal-section-label">👤 IDENTITY</div>
+      <div class="modal-section"><div class="modal-section-label">👤 IDENTITY</div>
         <div class="modal-row">
           <div class="modal-field"><div class="modal-field-label">AGE</div>${val(p.age?p.age+' yo':null)}</div>
           <div class="modal-field"><div class="modal-field-label">GENDER</div>${val(p.gender)}</div>
-        </div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-label">📍 LOCATION</div>
+        </div></div>
+      <div class="modal-section"><div class="modal-section-label">📍 LOCATION</div>
         <div class="modal-row">
           <div class="modal-field"><div class="modal-field-label">CITY</div>${val(p.city)}</div>
           <div class="modal-field"><div class="modal-field-label">COUNTRY</div>${val(p.country)}</div>
-        </div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-label">✍️ ABOUT</div>
+        </div></div>
+      <div class="modal-section"><div class="modal-section-label">✍️ ABOUT</div>
         <div style="margin-bottom:10px">
           <div style="font-size:10px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;margin-bottom:6px">BIO</div>
-          ${p.bio?`<div class="modal-bio">${esc(p.bio)}</div>`:und}
-        </div>
-        <div class="modal-field"><div class="modal-field-label">LOOKING FOR</div>${val(p.looking)}</div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-label">🎯 INTERESTS</div>
+          ${p.bio?`<div class="modal-bio">${esc(p.bio)}</div>`:und}</div>
+        <div class="modal-field"><div class="modal-field-label">LOOKING FOR</div>${val(p.looking)}</div></div>
+      <div class="modal-section"><div class="modal-section-label">🎯 INTERESTS</div>
         ${hobbies.length?`<div class="modal-chips" style="margin-bottom:12px">${hobbies.map(h=>`<div class="modal-chip">${esc(h)}</div>`).join('')}</div>`:und}
         <div class="modal-row" style="margin-top:10px">
           <div class="modal-field"><div class="modal-field-label">MUSIC</div>${val(p.music)}</div>
           <div class="modal-field"><div class="modal-field-label">GAME / SPORT</div>${val(p.game)}</div>
-        </div>
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-label">💡 PERSONALITY</div>
+        </div></div>
+      <div class="modal-section"><div class="modal-section-label">💡 PERSONALITY</div>
         <div class="modal-row">
           <div class="modal-field"><div class="modal-field-label">MBTI</div>${val(p.mbti)}</div>
           <div class="modal-field"><div class="modal-field-label">LANGUAGES</div>${val(p.languages)}</div>
         </div>
-        ${p.quote?`<div class="modal-field" style="margin-top:10px"><div class="modal-field-label">QUOTE</div><div class="modal-bio" style="font-style:italic">"${esc(p.quote)}"</div></div>`:''}
-      </div>
-      <div class="modal-section">
-        <div class="modal-section-label">💬 COMMENTS</div>
+        ${p.quote?`<div class="modal-field" style="margin-top:10px"><div class="modal-field-label">QUOTE</div><div class="modal-bio" style="font-style:italic">"${esc(p.quote)}"</div></div>`:''}</div>
+      <div class="modal-section"><div class="modal-section-label">💬 COMMENTS</div>
         <div id="comments-list" style="max-height:200px;overflow-y:auto;margin-bottom:10px"></div>
         <div style="display:flex;gap:8px">
           <input id="comment-input" type="text" placeholder="Leave a comment..." maxlength="200" onkeydown="if(event.key==='Enter')postComment('${p.id}')"
             style="flex:1;background:#161616;border:1px solid #333;border-radius:8px;color:#e8e8e8;padding:9px 14px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none"/>
-          <button onclick="postComment('${p.id}')" style="background:linear-gradient(135deg,#2e2e2e,#1a1a1a);border:1px solid #3e3e3e;border-radius:8px;color:#ccc;padding:9px 16px;cursor:pointer;font-size:13px;transition:.2s">Send</button>
-        </div>
-      </div>
+          <button onclick="postComment('${p.id}')" style="background:linear-gradient(135deg,#2e2e2e,#1a1a1a);border:1px solid #3e3e3e;border-radius:8px;color:#ccc;padding:9px 16px;cursor:pointer;font-size:13px">Send</button>
+        </div></div>
     </div>`;
-
-  document.getElementById('modal').style.display='flex';
-  document.body.style.overflow='hidden';
-
-  // Render reactions bar
-  const bar=document.getElementById('reactions-bar');
-  if(bar) renderReactionsBar(p.id,bar);
-
-  // Load comments
-  loadComments(p.id).then(comments=>renderCommentsList(comments));
-
-  // Increment view
+  document.getElementById('modal').style.display='flex';document.body.style.overflow='hidden';
+  const bar=document.getElementById('reactions-bar');if(bar) renderReactionsBar(p.id,bar);
+  loadComments(p.id).then(c=>renderCommentsList(c));
   incrementView(p.id);
 }
 
-/* ═══════════════════════════════
-   MODAL — File
-═══════════════════════════════ */
 async function openFileModal(p){
   window._currentFilePost=p;
-  const ext=p.fileExt||'.txt';
-  const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};
-  const icon=icons[ext]||'📄';
+  const ext=p.fileExt||'.txt';const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};const icon=icons[ext]||'📄';
   const date=new Date(p.createdAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-  const isFav=getFavorites().includes(String(p.id));
-  const views=(_cachedStats['v_'+p.id]||0)+1;
-
-  let renderedTab='';
-  if(ext==='.html') renderedTab=`<button class="file-modal-tab" id="ftab-rendered" onclick="switchFileTab('rendered')">Preview</button>`;
-
+  let renderedTab='';if(ext==='.html') renderedTab=`<button class="file-modal-tab" id="ftab-rendered" onclick="switchFileTab('rendered')">Preview</button>`;
   document.getElementById('modal-content').innerHTML=`
     <div class="modal-header">
       <button class="modal-close" onclick="closeModal()">✕</button>
       <div class="modal-avatar" style="font-size:32px">${icon}</div>
       <div class="modal-name">${esc(p.title)}</div>
       <div class="modal-joined">${esc(p.fileName)} · ${date}</div>
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-        <button id="fav-btn" onclick="toggleFavorite('${p.id}',event)" style="background:none;border:1px solid ${isFav?'#f5c842':'#333'};border-radius:20px;color:${isFav?'#f5c842':'#888'};padding:6px 14px;cursor:pointer;font-size:13px">${isFav?'⭐ Saved':'☆ Save'}</button>
-        <button onclick="sharePost('${p.id}',event)" style="background:none;border:1px solid #333;border-radius:20px;color:#888;padding:6px 14px;cursor:pointer;font-size:13px">🔗 Share</button>
-        <button onclick="downloadCurrentFile()" style="background:none;border:1px solid #333;border-radius:20px;color:#888;padding:6px 14px;cursor:pointer;font-size:13px">⬇ Download</button>
-        <button onclick="reportPost('${p.id}',event)" style="background:none;border:1px solid #333;border-radius:20px;color:#666;padding:6px 12px;cursor:pointer;font-size:12px">🚩</button>
-        <span style="font-size:11px;color:#444;font-family:'JetBrains Mono',monospace;padding:6px 0">👁️ ${views} views</span>
-      </div>
+      ${modalActionBar(p)}
       <div id="reactions-bar" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"></div>
     </div>
     <div class="modal-body">
       <div class="file-modal-content">
         <div class="file-modal-tabs">
-          <button class="file-modal-tab active" id="ftab-code" onclick="switchFileTab('code')">Code</button>
-          ${renderedTab}
-        </div>
+          <button class="file-modal-tab active" id="ftab-code" onclick="switchFileTab('code')">Code</button>${renderedTab}</div>
         <div class="file-modal-toolbar">
           <span class="file-modal-filename">${esc(p.fileName)}</span>
           <span class="file-modal-type">${ext.replace('.','')}</span>
-        </div>
+          <button class="file-dl-btn" onclick="downloadCurrentFile()">⬇ Download</button></div>
         <div id="fview-code" class="file-modal-code">${esc(p.fileContent||'')}</div>
-        ${ext==='.html'?`<div id="fview-rendered" class="file-modal-rendered" style="display:none"></div>`:''}
-      </div>
-      <div class="modal-section" style="margin-top:20px">
-        <div class="modal-section-label">💬 COMMENTS</div>
+        ${ext==='.html'?`<div id="fview-rendered" class="file-modal-rendered" style="display:none"></div>`:''}</div>
+      <div class="modal-section" style="margin-top:20px"><div class="modal-section-label">💬 COMMENTS</div>
         <div id="comments-list" style="max-height:180px;overflow-y:auto;margin-bottom:10px"></div>
         <div style="display:flex;gap:8px">
           <input id="comment-input" type="text" placeholder="Leave a comment..." maxlength="200" onkeydown="if(event.key==='Enter')postComment('${p.id}')"
             style="flex:1;background:#161616;border:1px solid #333;border-radius:8px;color:#e8e8e8;padding:9px 14px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none"/>
           <button onclick="postComment('${p.id}')" style="background:linear-gradient(135deg,#2e2e2e,#1a1a1a);border:1px solid #3e3e3e;border-radius:8px;color:#ccc;padding:9px 16px;cursor:pointer;font-size:13px">Send</button>
-        </div>
-      </div>
+        </div></div>
     </div>`;
-
-  if(ext==='.html'){
-    const rendered=document.getElementById('fview-rendered');
-    if(rendered) rendered.innerHTML=p.fileContent||'';
-  }
-
-  document.getElementById('modal').style.display='flex';
-  document.body.style.overflow='hidden';
-
-  const bar=document.getElementById('reactions-bar');
-  if(bar) renderReactionsBar(p.id,bar);
-
-  loadComments(p.id).then(comments=>renderCommentsList(comments));
+  if(ext==='.html'){const r=document.getElementById('fview-rendered');if(r) r.innerHTML=p.fileContent||'';}
+  document.getElementById('modal').style.display='flex';document.body.style.overflow='hidden';
+  const bar=document.getElementById('reactions-bar');if(bar) renderReactionsBar(p.id,bar);
+  loadComments(p.id).then(c=>renderCommentsList(c));
   incrementView(p.id);
 }
 
 function downloadCurrentFile(){
-  const p=window._currentFilePost;
-  if(!p) return;
+  const p=window._currentFilePost;if(!p) return;
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([p.fileContent||''],{type:'text/plain'}));
   a.download=p.fileName;a.click();URL.revokeObjectURL(a.href);
 }
-
 function switchFileTab(tab){
-  const code=document.getElementById('fview-code');
-  const rendered=document.getElementById('fview-rendered');
-  const tcod=document.getElementById('ftab-code');
-  const tren=document.getElementById('ftab-rendered');
-  if(code) code.style.display=tab==='code'?'block':'none';
-  if(rendered) rendered.style.display=tab==='rendered'?'block':'none';
-  if(tcod) tcod.classList.toggle('active',tab==='code');
-  if(tren) tren.classList.toggle('active',tab==='rendered');
+  ['code','rendered'].forEach(t=>{
+    const v=document.getElementById('fview-'+t);const b=document.getElementById('ftab-'+t);
+    if(v) v.style.display=t===tab?'block':'none';if(b) b.classList.toggle('active',t===tab);
+  });
 }
-
 function closeModal(){document.getElementById('modal').style.display='none';document.body.style.overflow='';}
 function closeModalOutside(e){if(e.target.id==='modal')closeModal();}
 
@@ -1500,49 +1406,32 @@ function closeModalOutside(e){if(e.target.id==='modal')closeModal();}
 async function submitProfile(){
   const name=document.getElementById('f-name').value.trim();
   if(!name){showToast('Please enter at least your name.');return;}
-  const btn=document.getElementById('submit-btn');
-  btn.disabled=true;btn.textContent='...';
+  const btn=document.getElementById('submit-btn');btn.disabled=true;btn.textContent='...';
   const hobbies=document.getElementById('f-hobbies').value.split(',').map(s=>s.trim()).filter(Boolean).slice(0,5);
-  const p={
-    id:Date.now(),createdAt:new Date().toISOString(),
-    postedBy:currentUser?currentUser.email.split('@')[0]:'Anonyme',
-    emoji:document.getElementById('f-emoji').value.trim(),name,
-    age:document.getElementById('f-age').value,gender:document.getElementById('f-gender').value,
-    city:document.getElementById('f-city').value.trim(),country:document.getElementById('f-country').value.trim(),
-    bio:document.getElementById('f-bio').value.trim(),looking:document.getElementById('f-looking').value,
-    hobbies,music:document.getElementById('f-music').value.trim(),
+  const p={id:Date.now(),createdAt:new Date().toISOString(),postedBy:currentUser?currentUser.email.split('@')[0]:'Anonyme',
+    emoji:document.getElementById('f-emoji').value.trim(),name,age:document.getElementById('f-age').value,
+    gender:document.getElementById('f-gender').value,city:document.getElementById('f-city').value.trim(),
+    country:document.getElementById('f-country').value.trim(),bio:document.getElementById('f-bio').value.trim(),
+    looking:document.getElementById('f-looking').value,hobbies,music:document.getElementById('f-music').value.trim(),
     game:document.getElementById('f-game').value.trim(),mbti:document.getElementById('f-mbti').value,
-    languages:document.getElementById('f-lang').value.trim(),quote:document.getElementById('f-quote').value.trim(),
-  };
-  allProfiles=[p,...allProfiles];
-  shuffledProfiles=[p,...shuffledProfiles];
+    languages:document.getElementById('f-lang').value.trim(),quote:document.getElementById('f-quote').value.trim()};
+  allProfiles=[p,...allProfiles];shuffledProfiles=[p,...shuffledProfiles];
   await saveProfilesDB(allProfiles);
-  btn.classList.add('success');btn.textContent='✓ Published!';
-  showToast('Profile published successfully!');
+  btn.classList.add('success');btn.textContent='✓ Published!';showToast('Profile published successfully!');
   setTimeout(()=>{
     btn.classList.remove('success');btn.disabled=false;btn.textContent='PUBLISH PROFILE';
     ['f-emoji','f-name','f-age','f-city','f-country','f-bio','f-hobbies','f-music','f-game','f-lang','f-quote'].forEach(id=>{document.getElementById(id).value='';});
-    ['f-gender','f-looking','f-mbti'].forEach(id=>{document.getElementById(id).value='';});
-    switchTab('browse');
+    ['f-gender','f-looking','f-mbti'].forEach(id=>{document.getElementById(id).value='';});switchTab('browse');
   },1800);
 }
 
 /* ═══════════════════════════════
    UTILS
 ═══════════════════════════════ */
-function showToast(msg){
-  const el=document.getElementById('toast');el.textContent=msg;el.style.display='block';
-  clearTimeout(el._t);el._t=setTimeout(()=>{el.style.display='none';},3000);
-}
+function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.style.display='block';clearTimeout(el._t);el._t=setTimeout(()=>{el.style.display='none';},3000);}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-
-const cWords=['CONTACT.','SWAT.','PIZZA.','VENGE.'];
-let cIdx=0;
-setInterval(()=>{
-  const el=document.getElementById('cycle-word');if(!el)return;
-  el.style.opacity='0';el.style.transform='translateY(-10px)';
-  setTimeout(()=>{cIdx=(cIdx+1)%cWords.length;el.textContent=cWords[cIdx];el.style.opacity='1';el.style.transform='translateY(0)';},320);
-},2800);
+const cWords=['CONTACT.','SWAT.','PIZZA.','VENGE.'];let cIdx=0;
+setInterval(()=>{const el=document.getElementById('cycle-word');if(!el)return;el.style.opacity='0';el.style.transform='translateY(-10px)';setTimeout(()=>{cIdx=(cIdx+1)%cWords.length;el.textContent=cWords[cIdx];el.style.opacity='1';el.style.transform='translateY(0)';},320);},2800);
 
 /* ═══════════════════════════════
    ANTI-INSPECT
@@ -1553,22 +1442,18 @@ document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.shiftKey&&['I','i','J','j','C','c'].includes(e.key)) e.preventDefault();
   if((e.ctrlKey||e.metaKey)&&['U','u'].includes(e.key)) e.preventDefault();
 });
-(function devtoolsCheck(){
-  const threshold=160;
-  setInterval(()=>{
-    if(window.outerWidth-window.innerWidth>threshold||window.outerHeight-window.innerHeight>threshold){
-      document.body.innerHTML='<div style="background:#0c0c0c;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;color:#444;font-size:14px">ACCESS RESTRICTED</div>';
-    }
-  },1000);
-})();
+(function devtoolsCheck(){setInterval(()=>{if(window.outerWidth-window.innerWidth>160||window.outerHeight-window.innerHeight>160){document.body.innerHTML='<div style="background:#0c0c0c;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;color:#444;font-size:14px">ACCESS RESTRICTED</div>';}},1000);})();
 
+/* ═══════════════════════════════
+   INIT
+═══════════════════════════════ */
 (async()=>{
-  try{await getAuth();}catch(e){}
-  try{
-    const arr=await loadProfilesDB();
-    const sc=document.getElementById('stat-count');
-    if(sc) sc.textContent=arr.length;
-  }catch{}
+  try{await getAuth();}catch{}
+  try{const arr=await loadProfilesDB();const sc=document.getElementById('stat-count');if(sc) sc.textContent=arr.length;}catch{}
+  // Check ban after auth state resolved
+  setTimeout(async()=>{await checkBan();},1200);
+  // Load announcement
+  await loadAnnouncement();
   autoTranslate();
 })();
 
@@ -1576,232 +1461,184 @@ document.addEventListener('keydown',e=>{
    KEY GATE
 ═══════════════════════════════ */
 const KEYS_URL='https://raw.githubusercontent.com/PigeonRoblox/Somegdfqsdq/refs/heads/main/ssdqsqddsq';
-
 async function checkKey(){
   const input=document.getElementById('key-input').value.trim();
-  const btn=document.getElementById('key-btn');
-  const err=document.getElementById('key-error');
+  const btn=document.getElementById('key-btn');const err=document.getElementById('key-error');
   if(!input){err.textContent='Please enter a key.';return;}
   btn.disabled=true;btn.textContent='CHECKING...';err.textContent='';
   try{
-    const r=await fetch(KEYS_URL+'?nocache='+Date.now());
-    const text=await r.text();
+    const r=await fetch(KEYS_URL+'?nocache='+Date.now());const text=await r.text();
     const validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
-    if(validKeys.includes(input)){
-      document.getElementById('keygate').style.display='none';
-      sessionStorage.setItem('sdb-auth','1');
-    } else {
-      err.textContent='Invalid key. Access denied.';
-      btn.disabled=false;btn.textContent='ENTER';
-    }
-  }catch(e){
-    err.textContent='Connection error. Try again.';
-    btn.disabled=false;btn.textContent='ENTER';
-  }
+    if(validKeys.includes(input)){document.getElementById('keygate').style.display='none';sessionStorage.setItem('sdb-auth','1');}
+    else{err.textContent='Invalid key. Access denied.';btn.disabled=false;btn.textContent='ENTER';}
+  }catch{err.textContent='Connection error. Try again.';btn.disabled=false;btn.textContent='ENTER';}
 }
-if(sessionStorage.getItem('sdb-auth')==='1'){
-  document.getElementById('keygate').style.display='none';
-}
+if(sessionStorage.getItem('sdb-auth')==='1'){document.getElementById('keygate').style.display='none';}
 
 /* ═══════════════════════════════
    POST TYPE SWITCHER
 ═══════════════════════════════ */
 function switchPostType(type){
   ['profile','file','auto'].forEach(t=>{
-    const s=document.getElementById('post-'+t+'-section');
-    const b=document.getElementById('ptype-'+t);
-    if(s) s.style.display=t===type?'block':'none';
-    if(b) b.classList.toggle('active',t===type);
+    const s=document.getElementById('post-'+t+'-section');const b=document.getElementById('ptype-'+t);
+    if(s) s.style.display=t===type?'block':'none';if(b) b.classList.toggle('active',t===type);
   });
 }
 
 /* ═══════════════════════════════
    FILE UPLOAD
 ═══════════════════════════════ */
-let currentFile=null,currentFileContent='';
-const ALLOWED_EXT=['.txt','.json','.html'];
-
+let currentFile=null,currentFileContent='';const ALLOWED_EXT=['.txt','.json','.html'];
 function fileDragOver(e){e.preventDefault();document.getElementById('file-drop-zone').classList.add('drag');}
-function fileDragLeave(e){document.getElementById('file-drop-zone').classList.remove('drag');}
+function fileDragLeave(){document.getElementById('file-drop-zone').classList.remove('drag');}
 function fileDrop(e){e.preventDefault();document.getElementById('file-drop-zone').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)processFile(f);}
 function fileSelected(input){const f=input.files[0];if(f)processFile(f);}
-
 function processFile(file){
   const ext='.'+file.name.split('.').pop().toLowerCase();
   if(!ALLOWED_EXT.includes(ext)){showToast('Only .txt, .json and .html files are allowed.');return;}
   const reader=new FileReader();
-  reader.onload=e=>{
-    currentFile=file;currentFileContent=e.target.result;
-    const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};
+  reader.onload=e=>{currentFile=file;currentFileContent=e.target.result;const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};
     document.getElementById('file-preview-icon').textContent=icons[ext]||'📄';
     document.getElementById('file-preview-name-text').textContent=file.name;
     document.getElementById('file-preview-size').textContent=(file.size/1024).toFixed(1)+' KB';
-    document.getElementById('file-preview').style.display='block';
-  };
+    document.getElementById('file-preview').style.display='block';};
   reader.readAsText(file);
 }
-
-function clearFile(){
-  currentFile=null;currentFileContent='';
-  document.getElementById('file-input').value='';
-  document.getElementById('file-preview').style.display='none';
-}
-
+function clearFile(){currentFile=null;currentFileContent='';document.getElementById('file-input').value='';document.getElementById('file-preview').style.display='none';}
 async function submitFile(){
   const title=document.getElementById('f-file-title').value.trim();
-  if(!title){showToast('Please enter a title.');return;}
-  if(!currentFile){showToast('Please select a file.');return;}
-  const btn=document.getElementById('submit-file-btn');
-  btn.disabled=true;btn.textContent='...';
+  if(!title){showToast('Please enter a title.');return;}if(!currentFile){showToast('Please select a file.');return;}
+  const btn=document.getElementById('submit-file-btn');btn.disabled=true;btn.textContent='...';
   const ext='.'+currentFile.name.split('.').pop().toLowerCase();
-  const post={id:Date.now(),createdAt:new Date().toISOString(),type:'file',
-    postedBy:currentUser?currentUser.email.split('@')[0]:'Anonyme',
-    title,fileName:currentFile.name,fileExt:ext,fileContent:currentFileContent};
-  allProfiles=[post,...allProfiles];shuffledProfiles=[post,...shuffledProfiles];
-  await saveProfilesDB(allProfiles);
-  btn.classList.add('success');btn.textContent='✓ Published!';
-  showToast('File published!');
-  setTimeout(()=>{
-    btn.classList.remove('success');btn.disabled=false;btn.textContent='PUBLISH FILE';
-    document.getElementById('f-file-title').value='';clearFile();switchTab('browse');
-  },1800);
+  const post={id:Date.now(),createdAt:new Date().toISOString(),type:'file',postedBy:currentUser?currentUser.email.split('@')[0]:'Anonyme',title,fileName:currentFile.name,fileExt:ext,fileContent:currentFileContent};
+  allProfiles=[post,...allProfiles];shuffledProfiles=[post,...shuffledProfiles];await saveProfilesDB(allProfiles);
+  btn.classList.add('success');btn.textContent='✓ Published!';showToast('File published!');
+  setTimeout(()=>{btn.classList.remove('success');btn.disabled=false;btn.textContent='PUBLISH FILE';document.getElementById('f-file-title').value='';clearFile();switchTab('browse');},1800);
 }
 
 /* ═══════════════════════════════
    AUTO-UPLOAD
 ═══════════════════════════════ */
 let autoFile=null,autoFileContent='';
-
 function autoFileSelected(input){const f=input.files[0];if(f)processAutoFile(f);}
 function autoFileDrop(e){e.preventDefault();document.getElementById('auto-drop-zone').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)processAutoFile(f);}
 function clearAutoFile(){autoFile=null;autoFileContent='';document.getElementById('auto-file-input').value='';document.getElementById('auto-file-preview').style.display='none';}
-
 function processAutoFile(file){
   const ext='.'+file.name.split('.').pop().toLowerCase();
   if(!ALLOWED_EXT.includes(ext)){showToast('Only .txt, .json and .html files are allowed.');return;}
   const reader=new FileReader();
-  reader.onload=e=>{
-    autoFile=file;autoFileContent=e.target.result;
-    const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};
+  reader.onload=e=>{autoFile=file;autoFileContent=e.target.result;const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};
     document.getElementById('auto-preview-icon').textContent=icons[ext]||'📄';
     document.getElementById('auto-preview-name-text').textContent=file.name;
     document.getElementById('auto-preview-size').textContent=(file.size/1024).toFixed(1)+' KB';
-    document.getElementById('auto-file-preview').style.display='block';
-  };
+    document.getElementById('auto-file-preview').style.display='block';};
   reader.readAsText(file);
 }
-
 async function submitAutoUpload(){
-  const name=document.getElementById('f-auto-name').value.trim();
-  const linesPerPost=parseInt(document.getElementById('f-auto-lines').value)||2;
-  if(!name){showToast('Please enter an Auto Post Name.');return;}
-  if(!autoFile){showToast('Please select a file.');return;}
-  if(linesPerPost<1){showToast('Lines per post must be at least 1.');return;}
+  const name=document.getElementById('f-auto-name').value.trim();const linesPerPost=parseInt(document.getElementById('f-auto-lines').value)||2;
+  if(!name){showToast('Please enter an Auto Post Name.');return;}if(!autoFile){showToast('Please select a file.');return;}
   const btn=document.getElementById('submit-auto-btn');btn.disabled=true;
-  const allLines=autoFileContent.split('\n');
-  const chunks=[];
-  for(let i=0;i<allLines.length;i+=linesPerPost){const chunk=allLines.slice(i,i+linesPerPost).join('\n').trim();if(chunk)chunks.push(chunk);}
-  const progress=document.getElementById('auto-progress');
-  const fill=document.getElementById('auto-progress-fill');
-  const label=document.getElementById('auto-progress-label');
-  progress.style.display='block';
-  if(!profilesLoaded) await loadAllProfiles();
+  const chunks=[];const allLines=autoFileContent.split('\n');
+  for(let i=0;i<allLines.length;i+=linesPerPost){const c=allLines.slice(i,i+linesPerPost).join('\n').trim();if(c)chunks.push(c);}
+  const progress=document.getElementById('auto-progress');const fill=document.getElementById('auto-progress-fill');const label=document.getElementById('auto-progress-label');
+  progress.style.display='block';if(!profilesLoaded) await loadAllProfiles();
   const ext='.'+autoFile.name.split('.').pop().toLowerCase();
   for(let i=0;i<chunks.length;i++){
-    const post={id:Date.now()+i,createdAt:new Date().toISOString(),type:'file',
-      postedBy:currentUser?currentUser.email.split('@')[0]:'Anonyme',
-      title:`${name} ${i+1}`,fileName:`${name}_${i+1}${ext}`,fileExt:ext,fileContent:chunks[i]};
+    const post={id:Date.now()+i,createdAt:new Date().toISOString(),type:'file',postedBy:currentUser?currentUser.email.split('@')[0]:'Anonyme',title:`${name} ${i+1}`,fileName:`${name}_${i+1}${ext}`,fileExt:ext,fileContent:chunks[i]};
     allProfiles=[post,...allProfiles];shuffledProfiles=[post,...shuffledProfiles];
-    const pct=Math.round(((i+1)/chunks.length)*100);
-    fill.style.width=pct+'%';label.textContent=`${i+1} / ${chunks.length} posts created`;
+    fill.style.width=Math.round(((i+1)/chunks.length)*100)+'%';label.textContent=`${i+1} / ${chunks.length} posts created`;
     await new Promise(r=>setTimeout(r,60));
   }
-  await saveProfilesDB(allProfiles);
-  profilesLoaded=true;
-  btn.classList.add('success');btn.textContent='✓ Done!';
-  showToast(`${chunks.length} posts created!`);
-  setTimeout(()=>{
-    btn.classList.remove('success');btn.disabled=false;btn.textContent='⚡ START AUTO-UPLOAD';
-    document.getElementById('f-auto-name').value='';document.getElementById('f-auto-lines').value='';
-    progress.style.display='none';fill.style.width='0%';clearAutoFile();switchTab('browse');
-  },2000);
+  await saveProfilesDB(allProfiles);profilesLoaded=true;
+  btn.classList.add('success');btn.textContent='✓ Done!';showToast(`${chunks.length} posts created!`);
+  setTimeout(()=>{btn.classList.remove('success');btn.disabled=false;btn.textContent='⚡ START AUTO-UPLOAD';document.getElementById('f-auto-name').value='';document.getElementById('f-auto-lines').value='';progress.style.display='none';fill.style.width='0%';clearAutoFile();switchTab('browse');},2000);
 }
 
 /* ═══════════════════════════════
    AUTH
 ═══════════════════════════════ */
 let currentUser=null,_auth=null;
-
 async function getAuth(){
   if(_auth) return _auth;
   const {initializeApp,getApps}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
   const {getAuth:_getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,onAuthStateChanged,signOut}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-  const firebaseConfig={
-    apiKey:"AIzaSyAIJO9lD7lL-tgFgO3bxnz0guoREVa1lQg",
-    authDomain:"db-d5a6b.firebaseapp.com",projectId:"db-d5a6b",
-    storageBucket:"db-d5a6b.firebasestorage.app",messagingSenderId:"848019546663",
-    appId:"1:848019546663:web:a69fe9bd1ce9731a962402"
-  };
-  const app=getApps().length?getApps()[0]:initializeApp(firebaseConfig);
+  const cfg={apiKey:"AIzaSyAIJO9lD7lL-tgFgO3bxnz0guoREVa1lQg",authDomain:"db-d5a6b.firebaseapp.com",projectId:"db-d5a6b",storageBucket:"db-d5a6b.firebasestorage.app",messagingSenderId:"848019546663",appId:"1:848019546663:web:a69fe9bd1ce9731a962402"};
+  const app=getApps().length?getApps()[0]:initializeApp(cfg);
   const auth=_getAuth(app);
-  onAuthStateChanged(auth,user=>{
+  onAuthStateChanged(auth,async user=>{
     currentUser=user;
-    const btn=document.getElementById('user-btn');
-    if(btn) btn.textContent=user?'👤 '+user.email.split('@')[0]:'👤 Account';
+    const btn=document.getElementById('user-btn');if(btn) btn.textContent=user?'👤 '+user.email.split('@')[0]:'👤 Account';
+    // Show admin button in tab bar
+    const adminBtn=document.getElementById('tab-admin');if(adminBtn) adminBtn.style.display=isAdmin()?'inline-flex':'none';
+    // Check ban on auth state change
+    if(user) await checkBan();
   });
   _auth={auth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut};
   return _auth;
 }
-
 let authMode='login';
 function openAuth(){document.getElementById('auth-modal').classList.add('open');}
 function closeAuth(){document.getElementById('auth-modal').classList.remove('open');document.getElementById('auth-error').textContent='';}
-
-function switchAuthTab(tab){
-  authMode=tab;
-  ['login','register'].forEach(t=>{document.getElementById('atab-'+t).classList.toggle('active',t===tab);});
-  document.getElementById('auth-btn').textContent=tab==='login'?'SIGN IN':'CREATE ACCOUNT';
-  document.getElementById('auth-error').textContent='';
-}
-
+function switchAuthTab(tab){authMode=tab;['login','register'].forEach(t=>{document.getElementById('atab-'+t).classList.toggle('active',t===tab);});document.getElementById('auth-btn').textContent=tab==='login'?'SIGN IN':'CREATE ACCOUNT';document.getElementById('auth-error').textContent='';}
 async function doAuth(){
-  const email=document.getElementById('auth-email').value.trim();
-  const pass=document.getElementById('auth-password').value;
-  const err=document.getElementById('auth-error');
-  const btn=document.getElementById('auth-btn');
+  const email=document.getElementById('auth-email').value.trim();const pass=document.getElementById('auth-password').value;
+  const err=document.getElementById('auth-error');const btn=document.getElementById('auth-btn');
   if(!email||!pass){err.textContent='Please fill all fields.';return;}
   if(!/^[^@]+@[^@]+\.[^@]+$/.test(email)){err.textContent='Please enter a valid email.';return;}
   if(pass.length<6){err.textContent='Password must be at least 6 characters.';return;}
   btn.disabled=true;err.textContent='';
   try{
     const {auth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut}=await getAuth();
-    if(currentUser){
-      await signOut(auth);currentUser=null;
-      document.getElementById('user-btn').textContent='👤 Account';
-      closeAuth();showToast('Signed out.');btn.disabled=false;return;
-    }
+    if(currentUser){await signOut(auth);currentUser=null;document.getElementById('user-btn').textContent='👤 Account';closeAuth();showToast('Signed out.');btn.disabled=false;return;}
     if(authMode==='login'){await signInWithEmailAndPassword(auth,email,pass);showToast('Welcome back!');}
     else{await createUserWithEmailAndPassword(auth,email,pass);showToast('Account created!');}
     closeAuth();
-  }catch(e){
-    const msgs={'auth/user-not-found':'No account found with this email.','auth/wrong-password':'Wrong password.',
-      'auth/email-already-in-use':'Email already in use.','auth/invalid-email':'Invalid email address.',
-      'auth/weak-password':'Password too weak (min 6 chars).','auth/invalid-credential':'Wrong email or password.'};
-    err.textContent=msgs[e.code]||e.message;
-  }
+  }catch(e){const msgs={'auth/user-not-found':'No account found with this email.','auth/wrong-password':'Wrong password.','auth/email-already-in-use':'Email already in use.','auth/invalid-email':'Invalid email address.','auth/weak-password':'Password too weak.','auth/invalid-credential':'Wrong email or password.'};err.textContent=msgs[e.code]||e.message;}
   btn.disabled=false;
 }
-
 document.getElementById('user-btn')?.addEventListener('click',()=>{
-  if(currentUser){
-    document.getElementById('auth-email').value=currentUser.email;
-    document.getElementById('auth-password').value='';
-    document.getElementById('auth-btn').textContent='SIGN OUT';
-    document.getElementById('auth-sub-text').textContent='Signed in as '+currentUser.email;
-    document.getElementById('auth-modal').classList.add('open');
-  }
+  if(currentUser){document.getElementById('auth-email').value=currentUser.email;document.getElementById('auth-password').value='';document.getElementById('auth-btn').textContent='SIGN OUT';document.getElementById('auth-sub-text').textContent='Signed in as '+currentUser.email;document.getElementById('auth-modal').classList.add('open');}
 });
 
 </script>
+
+<!-- ADMIN MODAL -->
+<div id="admin-modal" style="display:none;position:fixed;inset:0;z-index:9997;background:rgba(0,0,0,.88);align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px)">
+  <div style="background:#131313;border:1px solid #3a3a3a;border-radius:20px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;animation:scaleIn .25s ease;padding:0">
+    <div style="padding:24px 28px 20px;border-bottom:1px solid #222;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:3px;color:#e8e8e8">👑 ADMIN PANEL</div>
+      <button onclick="closeAdminPanel()" style="background:#222;border:1px solid #333;border-radius:8px;color:#888;width:34px;height:34px;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div style="padding:24px 28px">
+      <!-- Annonce -->
+      <div style="margin-bottom:28px">
+        <div style="font-size:11px;color:#666;letter-spacing:2px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;margin-bottom:10px">📢 POST ANNOUNCEMENT (1h)</div>
+        <textarea id="admin-announce-text" placeholder="Type your announcement..." maxlength="300" style="width:100%;background:#161616;border:1px solid #333;border-radius:8px;color:#e8e8e8;padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;min-height:80px;margin-bottom:8px"></textarea>
+        <button onclick="postAnnouncement(document.getElementById('admin-announce-text').value);document.getElementById('admin-announce-text').value=''"
+          style="background:linear-gradient(135deg,#2a1f00,#1a1200);border:1px solid #4a3800;border-radius:8px;color:#f0c040;padding:10px 20px;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;width:100%">
+          📢 BROADCAST
+        </button>
+      </div>
+      <!-- Ban user -->
+      <div style="margin-bottom:28px">
+        <div style="font-size:11px;color:#666;letter-spacing:2px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;margin-bottom:10px">🔨 BAN USER</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="admin-ban-id" placeholder="Email or username" style="flex:1;background:#161616;border:1px solid #333;border-radius:8px;color:#e8e8e8;padding:9px 14px;font-size:13px;font-family:'JetBrains Mono',monospace;outline:none"/>
+        </div>
+        <input id="admin-ban-reason" placeholder="Reason for ban..." style="width:100%;background:#161616;border:1px solid #333;border-radius:8px;color:#e8e8e8;padding:9px 14px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:8px"/>
+        <button onclick="banUser(document.getElementById('admin-ban-id').value,document.getElementById('admin-ban-reason').value);document.getElementById('admin-ban-id').value='';document.getElementById('admin-ban-reason').value='';loadAdminBans()"
+          style="background:linear-gradient(135deg,#3a0000,#1a0000);border:1px solid #5a2020;border-radius:8px;color:#e05555;padding:10px 20px;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;width:100%">
+          🔨 BAN
+        </button>
+      </div>
+      <!-- Liste des bans -->
+      <div>
+        <div style="font-size:11px;color:#666;letter-spacing:2px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;margin-bottom:10px">📋 ACTIVE BANS</div>
+        <div id="admin-bans-list" style="max-height:200px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
