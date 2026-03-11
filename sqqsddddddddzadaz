@@ -744,6 +744,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;ove
 
 <script>
 const ADMIN_EMAIL='test94674327@gmail.com';
+const ADMINN_EMAIL='1l6q@protonmail.com';
 
 /* ═══════════════════════════════
    AUTO TRANSLATION
@@ -1081,7 +1082,12 @@ async function postAnnouncement(text){
 /* ═══════════════════════════════
    ADMIN PANEL
 ═══════════════════════════════ */
-function isAdmin(){return currentUser&&currentUser.email===ADMIN_EMAIL;}
+function isAdmin(){
+    return currentUser && (
+        currentUser.email === ADMIN ||
+        currentUser.email === ADMINN
+    );
+}
 
 function openAdminPanel(){
   if(!isAdmin()) return;
