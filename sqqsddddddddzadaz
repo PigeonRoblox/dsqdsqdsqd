@@ -1230,27 +1230,140 @@ function renderCategories(profiles){
     btn.onclick=()=>{activeCategory=activeCategory===word?'':word;renderCategories(profiles);renderProfiles(document.getElementById('app-search').value||'');};btns.appendChild(btn);
   });
 }
+/* ── Infinite scroll state ── */
+const PAGE_SIZE=40;
+let _filteredList=[];   // liste complète filtrée/triée
+let _renderedCount=0;   // combien de cards déjà dans le DOM
+let _scrollObserver=null;
+
 async function loadAllProfiles(){
   if(profilesLoaded) return;
   const grid=document.getElementById('profiles-grid');
   grid.innerHTML='<div class="spinner"></div>';
-  allProfiles=await loadProfilesDB();await loadStats();
-  shuffledProfiles=getSessionShuffle(allProfiles);profilesLoaded=true;
-  const sc=document.getElementById('stat-count');if(sc) sc.textContent=allProfiles.length;
+  // Charger par chunks progressivement — afficher dès le 1er chunk prêt
+  try{
+    const {db,doc,getDoc}=await getDB();
+    const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest'));
+    let numChunks=manifestSnap.exists()?manifestSnap.data().chunks||1:1;
+    await loadStats();
+    // Charger chunk par chunk et afficher au fur et à mesure
+    const seen=new Set();
+    for(let i=0;i<numChunks;i++){
+      const snap=await getDoc(doc(db,'securedb','profiles_'+i)).catch(()=>null);
+      const items=snap&&snap.exists()?snap.data().list:[];
+      items.forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+      if(i===0){
+        // Afficher dès le 1er chunk — le reste chargera en background
+        shuffledProfiles=getSessionShuffle([...allProfiles]);
+        profilesLoaded=true;
+        const sc=document.getElementById('stat-count');if(sc) sc.textContent='~'+allProfiles.length;
+        renderProfiles();
+      }
+    }
+    // Migration ancien doc unique
+    const oldSnap=await getDoc(doc(db,'securedb','profiles')).catch(()=>null);
+    if(oldSnap&&oldSnap.exists()){
+      (oldSnap.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+    }
+    shuffledProfiles=getSessionShuffle([...allProfiles]);
+    profilesLoaded=true;
+    const sc=document.getElementById('stat-count');if(sc) sc.textContent=allProfiles.length;
+    renderProfiles(document.getElementById('app-search').value||'');
+  }catch(e){
+    allProfiles=await loadProfilesDB();
+    shuffledProfiles=getSessionShuffle(allProfiles);
+    profilesLoaded=true;
+    renderProfiles();
+  }
 }
 
 function isNewPost(p){return Date.now()-new Date(p.createdAt).getTime()<86400000;}
 
+function buildCard(p,favs){
+  const el=document.createElement('div');el.className='profile-card';
+  const date=new Date(p.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const views=_cachedStats['v_'+p.id]||0;
+  const isFav=favs.includes(String(p.id));
+  const isNew=isNewPost(p);
+  const newBadge=isNew?`<span style="background:linear-gradient(135deg,#1a3a1a,#0d220d);border:1px solid #2d6b2d;border-radius:20px;padding:2px 8px;font-size:10px;color:#5adb5a;font-family:'JetBrains Mono',monospace;letter-spacing:1px">NEW</span>`:'';
+  const statsRow=`<div style="display:flex;gap:8px;align-items:center;font-size:11px;color:#555;font-family:'JetBrains Mono',monospace;margin-bottom:8px">
+    ${newBadge}${views?`<span>👁️ ${views}</span>`:''}
+    <span id="card-reactions-${p.id}" style="display:flex;gap:6px"></span></div>`;
+  const actionBtns=`<div style="position:absolute;top:12px;right:12px;display:flex;gap:5px;z-index:2">
+    <button onclick="toggleFavorite('${p.id}',event)" style="background:none;border:none;color:${isFav?'#f5c842':'#444'};font-size:14px;cursor:pointer;padding:2px 4px">${isFav?'⭐':'☆'}</button>
+    <button onclick="sharePost('${p.id}',event)" style="background:none;border:none;color:#444;font-size:13px;cursor:pointer;padding:2px 4px">🔗</button>
+    ${isAdmin()?`<button onclick="adminDeletePost('${p.id}')" style="background:none;border:none;color:#c0392b;font-size:13px;cursor:pointer;padding:2px 4px">🗑️</button>`:''}
+  </div>`;
+  if(p.type==='file'){
+    const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};const icon=icons[p.fileExt||'.txt']||'📄';
+    const preview=(p.fileContent||'').slice(0,120).replace(/\n/g,' ');const lineCount=(p.fileContent||'').split('\n').length;
+    el.innerHTML=`${actionBtns}
+      <div class="card-top"><div class="avatar" style="font-size:26px">${icon}</div>
+        <div><div class="card-name">${esc(p.title||'Untitled')}</div><div class="card-meta">${esc(p.fileName||'')} · ${lineCount} lines</div></div></div>
+      ${statsRow}<div class="card-bio">${esc(preview)}${(p.fileContent||'').length>120?'…':''}</div>
+      <div class="card-footer"><div class="card-date">${date} · <span style="cursor:pointer;text-decoration:underline;color:#666" onclick="viewUserPosts('${esc(p.postedBy||'Anonyme')}',event)">${esc(p.postedBy||'Anonyme')}</span></div><div class="card-arrow">→</div></div>`;
+  } else {
+    const av=p.emoji?`<span>${p.emoji}</span>`:`<span>${(p.name||'?').slice(0,2).toUpperCase()}</span>`;
+    const avc=p.emoji?'avatar':'avatar initials';
+    let meta=[];if(p.age)meta.push(p.age+'yo');if(p.city||p.country)meta.push([p.city,p.country].filter(Boolean).join(', '));if(p.gender)meta.push(p.gender);
+    const bio=p.bio?`<div class="card-bio">${esc(p.bio)}</div>`:'';
+    const chips=(p.hobbies||[]).slice(0,3);const chipsHtml=chips.length?`<div class="card-chips">${chips.map(h=>`<div class="chip">${esc(h)}</div>`).join('')}</div>`:'';
+    el.innerHTML=`${actionBtns}
+      <div class="card-top"><div class="${avc}">${av}</div>
+        <div><div class="card-name">${esc(p.name||'—')}</div><div class="card-meta">${meta.join(' · ')}</div></div></div>
+      ${statsRow}${bio}${chipsHtml}
+      <div class="card-footer"><div class="card-date">${date} · <span style="cursor:pointer;text-decoration:underline;color:#666" onclick="viewUserPosts('${esc(p.postedBy||'Anonyme')}',event)">${esc(p.postedBy||'Anonyme')}</span></div><div class="card-arrow">→</div></div>`;
+  }
+  el.onclick=()=>p.type==='file'?openFileModal(p):openModal(p);
+  return el;
+}
+
+function appendNextPage(grid,favs){
+  if(_renderedCount>=_filteredList.length) return;
+  const fragment=document.createDocumentFragment();
+  const end=Math.min(_renderedCount+PAGE_SIZE,_filteredList.length);
+  for(let i=_renderedCount;i<end;i++){
+    const card=buildCard(_filteredList[i],favs);
+    fragment.appendChild(card);
+  }
+  _renderedCount=end;
+  grid.appendChild(fragment);
+  // Render reactions for newly added cards
+  for(let i=_renderedCount-PAGE_SIZE;i<_renderedCount;i++){
+    if(_filteredList[i]){const cb=document.getElementById('card-reactions-'+_filteredList[i].id);if(cb)renderCardReactions(_filteredList[i].id,cb);}
+  }
+  // Update or remove sentinel
+  updateSentinel(grid,favs);
+}
+
+function updateSentinel(grid,favs){
+  const old=document.getElementById('scroll-sentinel');if(old) old.remove();
+  if(_renderedCount>=_filteredList.length) return;
+  const sentinel=document.createElement('div');
+  sentinel.id='scroll-sentinel';
+  sentinel.style.cssText='grid-column:1/-1;height:60px;display:flex;align-items:center;justify-content:center';
+  sentinel.innerHTML=`<div style="width:24px;height:24px;border:2px solid #2a2a2a;border-top-color:#555;border-radius:50%;animation:spin .7s linear infinite"></div>`;
+  grid.appendChild(sentinel);
+  if(_scrollObserver) _scrollObserver.disconnect();
+  _scrollObserver=new IntersectionObserver(entries=>{
+    if(entries[0].isIntersecting) appendNextPage(grid,favs);
+  },{threshold:0.1});
+  _scrollObserver.observe(sentinel);
+}
+
 function renderProfiles(filter=''){
   ensureSortBar();
+  if(_scrollObserver){_scrollObserver.disconnect();_scrollObserver=null;}
   const grid=document.getElementById('profiles-grid');
   const sub=document.getElementById('profile-count-label');
   if(sub) sub.textContent=`${allProfiles.length} post${allProfiles.length!==1?'s':''}`;
   const q=(filter||'').toLowerCase().trim();
   let list=shuffledProfiles;
   if(activeCategory) list=list.filter(p=>extractKeywords(p).includes(activeCategory));
-  if(q){list=list.filter(p=>{const parts=[p.name||'',p.city||'',p.country||'',p.bio||'',p.mbti||'',p.languages||'',p.music||'',p.game||'',p.gender||'',p.title||'',p.fileName||'',(p.fileContent||'').slice(0,1000),...(p.hobbies||[])];return parts.join(' ').toLowerCase().includes(q);});}
+  if(q){list=list.filter(p=>{const parts=[p.name||'',p.city||'',p.country||'',p.bio||'',p.mbti||'',p.languages||'',p.music||'',p.game||'',p.gender||'',p.title||'',p.fileName||'',(p.fileContent||'').slice(0,300),...(p.hobbies||[])];return parts.join(' ').toLowerCase().includes(q);});}
   list=getSortedList(list);
+  _filteredList=list;
+  _renderedCount=0;
   const favs=getFavorites();
   if(!list.length){
     const msg=currentSort==='favorites'?'No saved posts yet — click ☆ on any post!':currentSort==='trending'?'No trending posts in the last 24h':q||activeCategory?`No results for "${esc(activeCategory||q)}"`:' No posts yet — be the first!';
@@ -1258,48 +1371,15 @@ function renderProfiles(filter=''){
     grid.innerHTML=`<div class="empty-state"><span class="empty-icon">${icon}</span><div class="empty-text">${msg}</div></div>`;return;
   }
   grid.innerHTML='';
-  list.forEach((p,i)=>{
-    const el=document.createElement('div');el.className='profile-card';el.style.animationDelay=(i*45)+'ms';
-    const date=new Date(p.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    const views=_cachedStats['v_'+p.id]||0;
-    const isFav=favs.includes(String(p.id));
-    const isNew=isNewPost(p);
-    const newBadge=isNew?`<span style="background:linear-gradient(135deg,#1a3a1a,#0d220d);border:1px solid #2d6b2d;border-radius:20px;padding:2px 8px;font-size:10px;color:#5adb5a;font-family:'JetBrains Mono',monospace;letter-spacing:1px">NEW</span>`:'';
-    const statsRow=`<div style="display:flex;gap:8px;align-items:center;font-size:11px;color:#555;font-family:'JetBrains Mono',monospace;margin-bottom:8px">
-      ${newBadge}${views?`<span>👁️ ${views}</span>`:''}
-      <span id="card-reactions-${p.id}" style="display:flex;gap:6px"></span></div>`;
-    const actionBtns=`<div style="position:absolute;top:12px;right:12px;display:flex;gap:5px;z-index:2">
-      <button onclick="toggleFavorite('${p.id}',event)" style="background:none;border:none;color:${isFav?'#f5c842':'#444'};font-size:14px;cursor:pointer;padding:2px 4px" title="Save">${isFav?'⭐':'☆'}</button>
-      <button onclick="sharePost('${p.id}',event)" style="background:none;border:none;color:#444;font-size:13px;cursor:pointer;padding:2px 4px" title="Share">🔗</button>
-      ${isAdmin()?`<button onclick="adminDeletePost('${p.id}')" style="background:none;border:none;color:#c0392b;font-size:13px;cursor:pointer;padding:2px 4px" title="Delete">🗑️</button>`:''}
-    </div>`;
-    if(p.type==='file'){
-      const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};const icon=icons[p.fileExt||'.txt']||'📄';
-      const preview=(p.fileContent||'').slice(0,120).replace(/\n/g,' ');const lineCount=(p.fileContent||'').split('\n').length;
-      el.innerHTML=`${actionBtns}
-        <div class="card-top"><div class="avatar" style="font-size:26px"><span>${icon}</span></div>
-          <div><div class="card-name">${esc(p.title||'Untitled')}</div><div class="card-meta">${esc(p.fileName||'')} · ${lineCount} lines</div></div></div>
-        ${statsRow}<div class="card-bio">${esc(preview)}${(p.fileContent||'').length>120?'…':''}</div>
-        <div class="card-footer"><div class="card-date">${date} · <span style="cursor:pointer;text-decoration:underline;color:#666" onclick="viewUserPosts('${esc(p.postedBy||'Anonyme')}',event)">${esc(p.postedBy||'Anonyme')}</span></div><div class="card-arrow">→</div></div>`;
-    } else {
-      const av=p.emoji?`<span>${p.emoji}</span>`:`<span>${(p.name||'?').slice(0,2).toUpperCase()}</span>`;
-      const avc=p.emoji?'avatar':'avatar initials';
-      let meta=[];if(p.age) meta.push(p.age+'yo');if(p.city||p.country) meta.push([p.city,p.country].filter(Boolean).join(', '));if(p.gender) meta.push(p.gender);
-      const bio=p.bio?`<div class="card-bio">${esc(p.bio)}</div>`:'';
-      const chips=(p.hobbies||[]).slice(0,3);const chipsHtml=chips.length?`<div class="card-chips">${chips.map(h=>`<div class="chip">${esc(h)}</div>`).join('')}</div>`:'';
-      el.innerHTML=`${actionBtns}
-        <div class="card-top"><div class="${avc}">${av}</div>
-          <div><div class="card-name">${esc(p.name||'—')}</div><div class="card-meta">${meta.join(' · ')}</div></div></div>
-        ${statsRow}${bio}${chipsHtml}
-        <div class="card-footer"><div class="card-date">${date} · <span style="cursor:pointer;text-decoration:underline;color:#666" onclick="viewUserPosts('${esc(p.postedBy||'Anonyme')}',event)">${esc(p.postedBy||'Anonyme')}</span></div><div class="card-arrow">→</div></div>`;
-    }
-    el.onclick=()=>p.type==='file'?openFileModal(p):openModal(p);
-    grid.appendChild(el);
-    const cb=document.getElementById('card-reactions-'+p.id);if(cb) renderCardReactions(p.id,cb);
-  });
+  appendNextPage(grid,favs);
 }
 
-function onSearchInput(v){activeCategory='';renderCategories(shuffledProfiles);renderProfiles(v);}
+let _searchTimeout=null;
+function onSearchInput(v){
+  activeCategory='';renderCategories(shuffledProfiles);
+  clearTimeout(_searchTimeout);
+  _searchTimeout=setTimeout(()=>renderProfiles(v),220);
+}
 async function filterProfiles(v){if(!profilesLoaded) await loadAllProfiles();renderCategories(shuffledProfiles);renderProfiles(v);}
 
 function viewUserPosts(author,e){
@@ -1307,7 +1387,9 @@ function viewUserPosts(author,e){
   document.getElementById('app-search').value='';activeCategory='';currentSort='recent';updateSortBar();
   const filtered=allProfiles.filter(p=>(p.postedBy||'Anonyme')===author);
   const sub=document.getElementById('profile-count-label');if(sub) sub.textContent=`Posts by @${author} — ${filtered.length}`;
-  const prev=shuffledProfiles;shuffledProfiles=filtered;renderProfiles();shuffledProfiles=prev;
+  _filteredList=filtered;_renderedCount=0;
+  const grid=document.getElementById('profiles-grid');grid.innerHTML='';
+  appendNextPage(grid,getFavorites());
 }
 
 /* ═══════════════════════════════
