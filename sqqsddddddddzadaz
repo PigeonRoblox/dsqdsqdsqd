@@ -1254,12 +1254,10 @@ async function loadAllProfiles(){
       items.forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
       if(i===0){
         // Afficher dès le 1er chunk — le reste chargera en background
-        shuffledProfiles = getSessionShuffle([...allProfiles]);
-        profilesLoaded = true;
-        const sc = document.getElementById('stat-count');
-        if(sc) sc.textContent = allProfiles.length;
-        renderCategories(shuffledProfiles); // ← ajoute cette ligne
-        renderProfiles(document.getElementById('app-search').value || '');
+        shuffledProfiles=getSessionShuffle([...allProfiles]);
+        profilesLoaded=true;
+        const sc=document.getElementById('stat-count');if(sc) sc.textContent='~'+allProfiles.length;
+        renderProfiles();
       }
     }
     // Migration ancien doc unique
