@@ -1213,7 +1213,7 @@ function extractKeywords(p){
   });
   return words;
 }
-const CAT_MIN=3;
+const CAT_MIN=15;
 const STOP_WORDS=new Set(['the','and','for','with','from','that','this','was','are','not','has','have','been','its','our','you','your','him','her','they','them','who','what','when','where','how','just','like','more','some','than','then','into','only','also','both','each','here','there','these','those','will','would','could','should','very','about','after','before','les','des','une','pour','dans','sur','avec','par','qui','est','pas','que','son','ses','ils','elles','mais','donc','car','tout','plus','bien','aussi','même','puis','moi','toi','lui','nous','vous','leur','leurs','mon','ton','van','deux','trois','tous','toute','cette','cela','oui','non','très','peu','trop','déjà','encore','toujours','jamais','www','http','https','html','css','com','net','org','php','json','xml','txt','pdf','null','true','false','undefined','function','return','const','let','var','class','new','div','span','img','src','href','style','width','height','type','name','data','file','connexion','connection','loading','error','default','index','admin','post','posts','user','users','date','time','list','item','page','site','text','link','view','edit','add','old','all','any','few','own','off','out','use','get','set']);
 function buildCategories(profiles){
   const freq={};
@@ -1254,10 +1254,12 @@ async function loadAllProfiles(){
       items.forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
       if(i===0){
         // Afficher dès le 1er chunk — le reste chargera en background
-        shuffledProfiles=getSessionShuffle([...allProfiles]);
-        profilesLoaded=true;
-        const sc=document.getElementById('stat-count');if(sc) sc.textContent='~'+allProfiles.length;
-        renderProfiles();
+        shuffledProfiles = getSessionShuffle([...allProfiles]);
+        profilesLoaded = true;
+        const sc = document.getElementById('stat-count');
+        if(sc) sc.textContent = allProfiles.length;
+        renderCategories(shuffledProfiles); // ← ajoute cette ligne
+        renderProfiles(document.getElementById('app-search').value || '');
       }
     }
     // Migration ancien doc unique
