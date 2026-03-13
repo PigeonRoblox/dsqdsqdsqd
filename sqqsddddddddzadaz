@@ -1700,12 +1700,25 @@ async function submitAutoUpload(){
   label.textContent=`${chunks.length} / ${chunks.length} posts created`;
   
   // Une seule save Firebase à la fin
-  await saveProfilesDB(allProfiles);
-  profilesLoaded=true;
-  
-  btn.classList.add('success');btn.textContent='✓ Done!';
-  showToast(`${chunks.length} posts created instantly! ⚡`);
-  
+btn.classList.add('success');btn.textContent='✓ Done!';
+showToast(`${chunks.length} posts created instantly! ⚡`);
+
+setTimeout(()=>{
+  btn.classList.remove('success');
+  btn.disabled=false;
+  btn.textContent='⚡ START AUTO-UPLOAD';
+  document.getElementById('f-auto-name').value='';
+  document.getElementById('f-auto-lines').value='';
+  progress.style.display='none';
+  fill.style.width='0%';
+  clearAutoFile();
+  switchTab('browse');
+},300);
+
+// Save en background (on s'en fout qu'il prenne du temps)
+saveProfilesDB(allProfiles).catch(e=>console.log('Save background'));
+profilesLoaded=true;
+
   setTimeout(()=>{
     btn.classList.remove('success');
     btn.disabled=false;
