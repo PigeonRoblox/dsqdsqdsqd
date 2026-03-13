@@ -1674,15 +1674,49 @@ async function submitAutoUpload(){
   const progress=document.getElementById('auto-progress');const fill=document.getElementById('auto-progress-fill');const label=document.getElementById('auto-progress-label');
   progress.style.display='block';if(!profilesLoaded) await loadAllProfiles();
   const ext='.'+autoFile.name.split('.').pop().toLowerCase();
+  const baseTime=Date.now();
+  
+  // 🚀 Créer TOUS les posts d'un coup (pas de boucle avec await)
+  const newPosts=[];
   for(let i=0;i<chunks.length;i++){
-    const post={id:Date.now()+i,createdAt:new Date().toISOString(),type:'file',postedBy:currentUser?currentUser.email.split('@')[0]:'Anonyme',title:`${name} ${i+1}`,fileName:`${name}_${i+1}${ext}`,fileExt:ext,fileContent:chunks[i]};
-    allProfiles=[post,...allProfiles];shuffledProfiles=[post,...shuffledProfiles];
-    fill.style.width=Math.round(((i+1)/chunks.length)*100)+'%';label.textContent=`${i+1} / ${chunks.length} posts created`;
-    await new Promise(r=>setTimeout(r,60));
+    newPosts.push({
+      id:baseTime+i,
+      createdAt:new Date(baseTime+i).toISOString(),
+      type:'file',
+      postedBy:currentUser?currentUser.email.split('@')[0]:'Anonyme',
+      title:`${name} ${i+1}`,
+      fileName:`${name}_${i+1}${ext}`,
+      fileExt:ext,
+      fileContent:chunks[i]
+    });
   }
-  await saveProfilesDB(allProfiles);profilesLoaded=true;
-  btn.classList.add('success');btn.textContent='✓ Done!';showToast(`${chunks.length} posts created!`);
-  setTimeout(()=>{btn.classList.remove('success');btn.disabled=false;btn.textContent='⚡ START AUTO-UPLOAD';document.getElementById('f-auto-name').value='';document.getElementById('f-auto-lines').value='';progress.style.display='none';fill.style.width='0%';clearAutoFile();switchTab('browse');},2000);
+  
+  // Une seule insertion en array
+  allProfiles=[...newPosts,...allProfiles];
+  shuffledProfiles=[...newPosts,...shuffledProfiles];
+  
+  // Update la barre (synchrone)
+  fill.style.width='100%';
+  label.textContent=`${chunks.length} / ${chunks.length} posts created`;
+  
+  // Une seule save Firebase à la fin
+  await saveProfilesDB(allProfiles);
+  profilesLoaded=true;
+  
+  btn.classList.add('success');btn.textContent='✓ Done!';
+  showToast(`${chunks.length} posts created instantly! ⚡`);
+  
+  setTimeout(()=>{
+    btn.classList.remove('success');
+    btn.disabled=false;
+    btn.textContent='⚡ START AUTO-UPLOAD';
+    document.getElementById('f-auto-name').value='';
+    document.getElementById('f-auto-lines').value='';
+    progress.style.display='none';
+    fill.style.width='0%';
+    clearAutoFile();
+    switchTab('browse');
+  },800);
 }
 
 /* ═══════════════════════════════
