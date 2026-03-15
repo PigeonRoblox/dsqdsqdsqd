@@ -1615,11 +1615,18 @@ async function checkKey(){
   try{
     const r=await fetch(KEYS_URL+'?nocache='+Date.now());const text=await r.text();
     const validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
-    if(validKeys.includes(input)){document.getElementById('keygate').style.display='none';sessionStorage.setItem('sdb-auth','1');}
+    if(validKeys.includes(input)){
+    document.getElementById('keygate').remove();
+    sessionStorage.setItem('sdb-auth','1');
+    showToast('✓ Access granted!');
+   }
     else{err.textContent='Invalid key. Access denied.';btn.disabled=false;btn.textContent='ENTER';}
   }catch{err.textContent='Connection error. Try again.';btn.disabled=false;btn.textContent='ENTER';}
 }
-if(sessionStorage.getItem('sdb-auth')==='1'){document.getElementById('keygate').style.display='none';}
+if(sessionStorage.getItem('sdb-auth')==='1'){
+  const kg = document.getElementById('keygate');
+  if(kg) kg.remove();
+}
 
 /* ═══════════════════════════════
    POST TYPE SWITCHER
