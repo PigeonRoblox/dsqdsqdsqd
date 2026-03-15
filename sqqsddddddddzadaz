@@ -1267,19 +1267,6 @@ async function loadAllProfiles(){
           const items=snap&&snap.exists()?snap.data().list:[];
           items.forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
         }
-        const oldSnap=await getDoc(doc(db,'securedb','profiles')).catch(()=>null);
-        if(oldSnap&&oldSnap.exists()){(oldSnap.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});}
-        shuffledProfiles=getSessionShuffle([...allProfiles]);
-        if(sc) sc.textContent=allProfiles.length;
-      })();
-    }
-  }catch(e){
-    allProfiles=await loadProfilesDB();
-    shuffledProfiles=getSessionShuffle(allProfiles);
-    profilesLoaded=true;
-    renderProfiles();
-  }
-}
 }
 
 function isNewPost(p){return Date.now()-new Date(p.createdAt).getTime()<86400000;}
