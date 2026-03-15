@@ -1248,32 +1248,34 @@ async function loadAllProfiles(){
   grid.innerHTML='<div class="spinner"></div>';
   try{
     const {db,doc,getDoc}=await getDB();
-    const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest'));
-    let numChunks=manifestSnap.exists()?manifestSnap.data().chunks||1:1;
     loadStats().catch(()=>{});
-    const chunk0Snap=await getDoc(doc(db,'securedb','profiles_0')).catch(()=>null);
-    const chunk0Items=chunk0Snap&&chunk0Snap.exists()?chunk0Snap.data().list:[];
+    const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest')).catch(()=>null);
+    const numChunks=manifestSnap&&manifestSnap.exists()?manifestSnap.data().chunks||1:1;
+
+    // Charger TOUS les chunks en parallèle d'un coup
+    const promises=[];
+    for(let i=0;i<numChunks;i++){
+      promises.push(getDoc(doc(db,'securedb','profiles_'+i)).catch(()=>null));
+    }
+    // Migration ancien doc unique
+    promises.push(getDoc(doc(db,'securedb','profiles')).catch(()=>null));
+
+    const snaps=await Promise.all(promises);
     const seen=new Set();
-    chunk0Items.forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+    snaps.forEach(snap=>{
+      if(!snap||!snap.exists()) return;
+      (snap.data().list||[]).forEach(p=>{
+        const k=String(p.id);
+        if(!seen.has(k)){seen.add(k);allProfiles.push(p);}
+      });
+    });
+
     shuffledProfiles=getSessionShuffle([...allProfiles]);
     profilesLoaded=true;
-    const sc=document.getElementById('stat-count');if(sc) sc.textContent='~'+allProfiles.length;
+    const sc=document.getElementById('stat-count');if(sc) sc.textContent=allProfiles.length;
     renderProfiles();
-if(numChunks>1){
-      (async()=>{
-        for(let i=1;i<numChunks;i++){
-          await new Promise(r=>requestIdleCallback(()=>r(),{timeout:200}));
-          const snap=await getDoc(doc(db,'securedb','profiles_'+i)).catch(()=>null);
-          const items=snap&&snap.exists()?snap.data().list:[];
-          items.forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
-        }
-        const oldSnap=await getDoc(doc(db,'securedb','profiles')).catch(()=>null);
-        if(oldSnap&&oldSnap.exists()){(oldSnap.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});}
-        shuffledProfiles=getSessionShuffle([...allProfiles]);
-        const sc=document.getElementById('stat-count');if(sc) sc.textContent=allProfiles.length;
-      })();
-    }
   }catch(e){
+    console.error(e);
     allProfiles=await loadProfilesDB();
     shuffledProfiles=getSessionShuffle(allProfiles);
     profilesLoaded=true;
