@@ -1611,19 +1611,30 @@ async function checkKey(){
   if(!input){err.textContent='Please enter a key.';return;}
   btn.disabled=true;btn.textContent='CHECKING...';err.textContent='';
   try{
-    const r=await fetch(KEYS_URL+'?nocache='+Date.now());const text=await r.text();
+    const r=await fetch(KEYS_URL+'?nocache='+Date.now());
+    const text=await r.text();
     const validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
     if(validKeys.includes(input)){
-    document.getElementById('keygate').remove();
-    sessionStorage.setItem('sdb-auth','1');
-    showToast('✓ Access granted!');
-   }
-    else{err.textContent='Invalid key. Access denied.';btn.disabled=false;btn.textContent='ENTER';}
-  }catch{err.textContent='Connection error. Try again.';btn.disabled=false;btn.textContent='ENTER';}
+      const kg=document.getElementById('keygate');
+      kg.style.display='none';
+      kg.remove();
+      sessionStorage.setItem('sdb-auth','1');
+      showToast('✓ Access granted!');
+    }
+    else{
+      err.textContent='Invalid key. Access denied.';
+      btn.disabled=false;
+      btn.textContent='ENTER';
+    }
+  }catch(e){
+    err.textContent='Connection error. Try again.';
+    btn.disabled=false;
+    btn.textContent='ENTER';
+  }
 }
 if(sessionStorage.getItem('sdb-auth')==='1'){
-  const kg = document.getElementById('keygate');
-  if(kg) kg.remove();
+  const kg=document.getElementById('keygate');
+  if(kg){kg.style.display='none';kg.remove();}
 }
 
 /* ═══════════════════════════════
