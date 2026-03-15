@@ -1280,21 +1280,6 @@ async function loadAllProfiles(){
     renderProfiles();
   }
 }
-    // Migration ancien doc unique
-    const oldSnap=await getDoc(doc(db,'securedb','profiles')).catch(()=>null);
-    if(oldSnap&&oldSnap.exists()){
-      (oldSnap.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
-    }
-    shuffledProfiles=getSessionShuffle([...allProfiles]);
-    profilesLoaded=true;
-    const sc=document.getElementById('stat-count');if(sc) sc.textContent=allProfiles.length;
-    renderProfiles(document.getElementById('app-search').value||'');
-  }catch(e){
-    allProfiles=await loadProfilesDB();
-    shuffledProfiles=getSessionShuffle(allProfiles);
-    profilesLoaded=true;
-    renderProfiles();
-  }
 }
 
 function isNewPost(p){return Date.now()-new Date(p.createdAt).getTime()<86400000;}
