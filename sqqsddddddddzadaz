@@ -1596,10 +1596,8 @@ document.addEventListener('keydown',e=>{
 (async()=>{
   try{await getAuth();}catch{}
   try{const arr=await loadProfilesDB();const sc=document.getElementById('stat-count');if(sc) sc.textContent=arr.length;}catch{}
-  // Check ban after auth state resolved
   setTimeout(async()=>{await checkBan();},1200);
-  // Load announcement
-  await loadAnnouncement();
+  loadAnnouncement().catch(()=>{});
   autoTranslate();
 })();
 
