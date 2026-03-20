@@ -686,7 +686,7 @@ const CHUNK_SIZE=200;
 const PAGE_SIZE=20;
 
 // PAYPAL config — remplace par ton lien PayPal réel
-const PAYPAL_PREMIUM_LINK='https://paypal.me/YOURPAYPAL/1EUR'; // 1€ pour 1 mois premium
+const PAYPAL_PREMIUM_LINK='https://paypal.me/AntoinneDuPont'; // 1€ pour 1 mois premium
 const PAYPAL_POINTS_LINKS={
   100:'https://paypal.me/YOURPAYPAL/1EUR',   // 100 pts = 1€
   500:'https://paypal.me/YOURPAYPAL/4EUR',   // 500 pts = 4€
