@@ -797,58 +797,18 @@ function isPremium(){
    PROFILES DB (chunked)
 ═══════════════════════════════════════════════════════ */
 async function loadProfilesDB(){
+  // Legacy fallback only
   try{
     const {db,doc,getDoc}=await getDB();
-    const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest')).catch(()=>null);
-    const numChunks=manifestSnap&&manifestSnap.exists()?manifestSnap.data().chunks||1:1;
-    const promises=[];
-    for(let i=0;i<numChunks;i++) promises.push(getDoc(doc(db,'securedb','profiles_'+i)).catch(()=>null));
-    promises.push(getDoc(doc(db,'securedb','profiles')).catch(()=>null));
-    const snaps=await Promise.all(promises);
-    const seen=new Set(); const result=[];
-    snaps.forEach(s=>{if(!s||!s.exists())return;(s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);result.push(p);}});});
-    return result;
-  }catch(e){console.error('loadProfilesDB',e);return [];}
+    const s=await getDoc(doc(db,'securedb','profiles_0')).catch(()=>null);
+    return s&&s.exists()?s.data().list||[]:[];
+  }catch{return [];}
 }
 
-// Fast append: push to a small "inbox" doc (max 500 items), no read needed before write
-// Firestore arrayUnion would be ideal but we use setDoc with merge on a dedicated doc
 async function appendPostDB(newPost){
-  try{
-    const {db,doc,getDoc,setDoc}=await getDB();
-    // Read current inbox (small doc, fast)
-    const inboxRef=doc(db,'securedb','inbox');
-    const snap=await getDoc(inboxRef);
-    const list=snap.exists()?(snap.data().list||[]):[];
-    list.unshift(newPost); // newest first
-    // Keep inbox small — flush old ones to main chunks if >500
-    if(list.length>500){
-      // Move overflow to a new chunk
-      const overflow=list.splice(300); // keep 300 in inbox, move rest
-      const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest')).catch(()=>null);
-      let numChunks=manifestSnap&&manifestSnap.exists()?manifestSnap.data().chunks||1:1;
-      await setDoc(doc(db,'securedb','profiles_'+numChunks),{list:overflow});
-      numChunks++;
-      await setDoc(doc(db,'securedb','profiles_manifest'),{chunks:numChunks,updatedAt:new Date().toISOString()});
-    }
-    await setDoc(inboxRef,{list});
-  }catch(e){
-    console.error('appendPostDB',e);
-    // Fallback: try simple saveProfilesDB with just recent posts
-    await saveRecentDB(newPost);
-  }
-}
-
-// Ultra-simple fallback
-async function saveRecentDB(newPost){
-  try{
-    const {db,doc,getDoc,setDoc}=await getDB();
-    const ref=doc(db,'securedb','profiles_inbox_fallback');
-    const snap=await getDoc(ref);
-    const list=snap.exists()?(snap.data().list||[]):[];
-    list.unshift(newPost);
-    await setDoc(ref,{list:list.slice(0,200)});
-  }catch(e){console.error('saveRecentDB',e);}
+  // 1 post = 1 Firestore doc, no size limit ever
+  try{ await savePostFS(newPost); }
+  catch(e){ console.error('appendPostDB',e); }
 }
 
 // Full rewrite — only used by admin delete
@@ -1010,7 +970,12 @@ async function adminDeletePost(postId){
   if(!isAdmin()) return;if(!confirm('Delete this post?')) return;
   allProfiles=allProfiles.filter(p=>String(p.id)!==String(postId));
   shuffledProfiles=shuffledProfiles.filter(p=>String(p.id)!==String(postId));
-  await saveProfilesDB(allProfiles);closeModal();renderProfiles(document.getElementById('app-search').value||'');showToast('🗑️ Deleted.');
+  try{
+    const {db}=await getDB();
+    const {collection,doc,deleteDoc}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await deleteDoc(doc(collection(db,'posts'),String(postId)));
+  }catch(e){console.error('delete',e);}
+  closeModal();renderProfiles(document.getElementById('app-search').value||'');showToast('🗑️ Deleted.');
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1285,6 +1250,47 @@ function renderCategories(profiles){
   });
 }
 
+/* ── Firestore: 1 post = 1 doc in collection "posts" ── */
+async function savePostFS(post){
+  // Each post saved as its own Firestore document — no size limit
+  const {db,doc,setDoc}=await getDB();
+  const {collection,doc:docRef}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  await setDoc(docRef(collection(db,'posts'),String(post.id)),post);
+}
+
+async function savePostsBatchFS(posts){
+  // Write posts in parallel batches of 20
+  const {db}=await getDB();
+  const {collection,doc:docRef,setDoc,writeBatch}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  const col=collection(db,'posts');
+  const BATCH_SIZE=400; // Firestore batch max
+  for(let i=0;i<posts.length;i+=BATCH_SIZE){
+    const batch=writeBatch(db);
+    posts.slice(i,i+BATCH_SIZE).forEach(p=>batch.set(docRef(col,String(p.id)),p));
+    await batch.commit();
+  }
+}
+
+async function loadRecentPostsFS(limitN=50){
+  try{
+    const {db}=await getDB();
+    const {collection,query,orderBy,limit,getDocs}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const q=query(collection(db,'posts'),orderBy('id','desc'),limit(limitN));
+    const snap=await getDocs(q);
+    return snap.docs.map(d=>d.data());
+  }catch(e){console.error('loadRecentPostsFS',e);return [];}
+}
+
+async function loadAllPostsFS(){
+  try{
+    const {db}=await getDB();
+    const {collection,query,orderBy,getDocs}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const q=query(collection(db,'posts'),orderBy('id','desc'));
+    const snap=await getDocs(q);
+    return snap.docs.map(d=>d.data());
+  }catch(e){console.error('loadAllPostsFS',e);return [];}
+}
+
 /* ── Progressive loader ── */
 let _bgLoadStarted=false,_bgLoadDone=false;
 
@@ -1293,64 +1299,41 @@ async function loadAllProfiles(){
   const grid=document.getElementById('profiles-grid');
   grid.innerHTML='<div class="spinner"></div>';
   loadStats().catch(()=>{});
-  try{
-    const {db,doc,getDoc}=await getDB();
-    const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest')).catch(()=>null);
-    const numChunks=manifestSnap&&manifestSnap.exists()?manifestSnap.data().chunks||1:1;
-    const seen=new Set();
 
-    // STEP 1: Load inbox first (newest posts, tiny doc) — near instant
-    const inboxSnap=await getDoc(doc(db,'securedb','inbox')).catch(()=>null);
-    if(inboxSnap&&inboxSnap.exists()){
-      (inboxSnap.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
-    }
-    // Also load the last chunk
-    const lastIdx=numChunks-1;
-    const firstSnap=await getDoc(doc(db,'securedb','profiles_'+lastIdx)).catch(()=>null);
-    if(firstSnap&&firstSnap.exists()){
-      (firstSnap.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
-    }
+  try{
+    // STEP 1: Load 50 most recent posts instantly
+    const recent=await loadRecentPostsFS(50);
+    const seen=new Set();
+    recent.forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
     shuffledProfiles=getSessionShuffle([...allProfiles]);
     profilesLoaded=true;
-    const sc=document.getElementById('stat-count');
-    if(sc) sc.textContent='~'+(numChunks*CHUNK_SIZE).toLocaleString();
     renderCategories(shuffledProfiles);
     renderProfiles();
 
-    // STEP 2: Load rest in background silently
+    // STEP 2: Load everything else in background
     if(!_bgLoadStarted){
       _bgLoadStarted=true;
-      _bgLoad(db,doc,getDoc,numChunks,lastIdx,seen);
+      loadAllPostsFS().then(all=>{
+        let added=0;
+        all.forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});
+        if(added>0){
+          shuffledProfiles=getSessionShuffle([...allProfiles]);
+          const sc=document.getElementById('stat-count');
+          if(sc) sc.textContent=allProfiles.length.toLocaleString();
+          const q2=(document.getElementById('app-search')?.value||'').trim();
+          if(!q2&&!activeCategory&&currentSort==='shuffle'&&_renderedCount<40) renderProfiles();
+        }
+        _bgLoadDone=true;
+      }).catch(e=>console.error('bg load',e));
     }
+
+    const sc=document.getElementById('stat-count');
+    if(sc) sc.textContent=allProfiles.length+'...';
   }catch(e){
     console.error('loadAllProfiles',e);
-    try{const {db,doc,getDoc}=await getDB();const s=await getDoc(doc(db,'securedb','profiles_0'));if(s.exists()) allProfiles=s.data().list||[];}catch{}
-    shuffledProfiles=getSessionShuffle([...allProfiles]);
     profilesLoaded=true;
     renderProfiles();
   }
-}
-
-async function _bgLoad(db,doc,getDoc,numChunks,skipIdx,seen){
-  const idxs=[];
-  for(let i=0;i<numChunks;i++) if(i!==skipIdx) idxs.push(i);
-  idxs.sort((a,b)=>b-a); // newest first
-  for(let i=0;i<idxs.length;i+=3){
-    const batch=idxs.slice(i,i+3).map(idx=>getDoc(doc(db,'securedb','profiles_'+idx)).catch(()=>null));
-    const snaps=await Promise.all(batch);
-    let added=0;
-    snaps.forEach(s=>{if(!s||!s.exists()) return;(s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});});
-    if(added>0){
-      shuffledProfiles=getSessionShuffle([...allProfiles]);
-      const sc=document.getElementById('stat-count');if(sc) sc.textContent=allProfiles.length.toLocaleString();
-      const q=(document.getElementById('app-search')?.value||'').trim();
-      if(!q&&!activeCategory&&currentSort==='shuffle'&&_renderedCount<40) renderProfiles();
-    }
-    await new Promise(r=>setTimeout(r,150));
-  }
-  // Migration old single doc
-  try{const old=await getDoc(doc(db,'securedb','profiles'));if(old.exists()){let a=0;(old.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);a++;}});if(a>0){shuffledProfiles=getSessionShuffle([...allProfiles]);const sc=document.getElementById('stat-count');if(sc) sc.textContent=allProfiles.length.toLocaleString();}}}catch{}
-  _bgLoadDone=true;
 }
 
 function isNewPost(p){return Date.now()-new Date(p.createdAt).getTime()<86400000;}
@@ -1715,50 +1698,65 @@ async function submitAutoUpload(){
   const linesPerPost=parseInt(document.getElementById('f-auto-lines').value)||2;
   if(!name){showToast('Please enter an Auto Post Name.');return;}
   if(!autoFile){showToast('Please select a file.');return;}
+
   const btn=document.getElementById('submit-auto-btn');btn.disabled=true;
   const access=document.getElementById('f-auto-access').value;
-  const chunks=[];const allLines=autoFileContent.split('\n');
-  for(let i=0;i<allLines.length;i+=linesPerPost){const c=allLines.slice(i,i+linesPerPost).join('\n').trim();if(c) chunks.push(c);}
-  if(!chunks.length){showToast('File is empty!');btn.disabled=false;return;}
   const progress=document.getElementById('auto-progress');
   const fill=document.getElementById('auto-progress-fill');
   const label=document.getElementById('auto-progress-label');
-  progress.style.display='block';
+  progress.style.display='block';fill.style.width='5%';
+  label.textContent='Preparing posts...';
+
+  const rawChunks=[];
+  const allLines=autoFileContent.split('\n');
+  for(let i=0;i<allLines.length;i+=linesPerPost){
+    const c=allLines.slice(i,i+linesPerPost).join('\n').trim();
+    if(c) rawChunks.push(c);
+  }
+  if(!rawChunks.length){showToast('File is empty!');btn.disabled=false;progress.style.display='none';return;}
+
   const ext='.'+autoFile.name.split('.').pop().toLowerCase();
   const baseTime=Date.now();
   const postedBy=currentUser?(_userData.displayName||currentUser.email.split('@')[0]):'Anonyme';
-  const newPosts=chunks.map((c,i)=>({id:baseTime+i,createdAt:new Date(baseTime+i).toISOString(),type:'file',postedBy,isPremiumUser:isPremium(),title:`${name} ${i+1}`,fileName:`${name}_${i+1}${ext}`,fileExt:ext,fileContent:c,fileAccess:access,pointsCost:0}));
-  allProfiles=[...newPosts,...allProfiles];shuffledProfiles=[...newPosts,...shuffledProfiles];profilesLoaded=true;
+  const newPosts=rawChunks.map((c,i)=>({
+    id:baseTime+i,
+    createdAt:new Date(baseTime+i).toISOString(),
+    type:'file',postedBy,isPremiumUser:isPremium(),
+    title:name+' '+(i+1),fileName:name+'_'+(i+1)+ext,
+    fileExt:ext,fileContent:c,fileAccess:access,pointsCost:0
+  }));
+
+  // Show in UI immediately
+  allProfiles=[...newPosts,...allProfiles];
+  shuffledProfiles=[...newPosts,...shuffledProfiles];
+  profilesLoaded=true;
+
   try{
-    const {db,doc,getDoc,setDoc}=await getDB();
-    const inboxRef=doc(db,'securedb','inbox');
-    const snap=await getDoc(inboxRef);
-    let list=snap.exists()?(snap.data().list||[]):[];
-    list=[...newPosts,...list];
-    if(list.length>500){
-      const overflow=list.splice(400);
-      const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest')).catch(()=>null);
-      let numChunks=manifestSnap&&manifestSnap.exists()?manifestSnap.data().chunks||1:1;
-      for(let i=0;i<overflow.length;i+=CHUNK_SIZE){
-        await setDoc(doc(db,'securedb','profiles_'+numChunks),{list:overflow.slice(i,i+CHUNK_SIZE)});
-        numChunks++;
-        fill.style.width=Math.round((i/overflow.length)*80)+'%';
-        label.textContent='Saving... '+i+'/'+overflow.length;
-      }
-      await setDoc(doc(db,'securedb','profiles_manifest'),{chunks:numChunks,updatedAt:new Date().toISOString()});
-    }
-    await setDoc(inboxRef,{list});
-    fill.style.width='100%';label.textContent=chunks.length+' / '+chunks.length+' posts saved';
-    addPoints(Math.min(chunks.length*2,50));
-    btn.classList.add('success');btn.textContent='Done! Saved.';
-    showToast(chunks.length+' posts saved! Points added');
+    label.textContent='Saving '+newPosts.length+' posts...';
+    fill.style.width='20%';
+    // Batch write — 1 doc per post, Firestore handles any amount
+    await savePostsBatchFS(newPosts);
+    fill.style.width='100%';
+    label.textContent=newPosts.length+' posts saved!';
+    addPoints(Math.min(newPosts.length*2,100));
+    btn.classList.add('success');
+    btn.textContent='Done! '+newPosts.length+' posts';
+    showToast(newPosts.length+' posts saved!');
   }catch(e){
-    console.error('auto-upload',e);
-    fill.style.width='100%';label.textContent='Save failed - local only';
-    btn.textContent='Error - retry';
-    showToast('Firebase error - try again');
+    console.error('auto-upload:',e);
+    label.textContent='Error: '+e.message;
+    btn.textContent='Error';
+    showToast('Error: '+e.message);
   }
-  setTimeout(()=>{btn.classList.remove('success');btn.disabled=false;btn.textContent='START AUTO-UPLOAD';document.getElementById('f-auto-name').value='';document.getElementById('f-auto-lines').value='';progress.style.display='none';fill.style.width='0%';clearAutoFile();switchTab('browse');},1500);
+
+  setTimeout(()=>{
+    btn.classList.remove('success');btn.disabled=false;
+    btn.textContent='START AUTO-UPLOAD';
+    document.getElementById('f-auto-name').value='';
+    document.getElementById('f-auto-lines').value='';
+    progress.style.display='none';fill.style.width='0%';
+    clearAutoFile();switchTab('browse');
+  },2000);
 }
 
 /* ═══════════════════════════════════════════════════════
