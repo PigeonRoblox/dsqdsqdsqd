@@ -1269,12 +1269,9 @@ async function savePostsBatchFS(posts){
   }
 }
 
-/* ── CHARGEMENT ──
-   1. Charge le manifest pour savoir combien de chunks anciens existent
-   2. Charge TOUS les chunks en parallèle par paquets (anciens posts)
-   3. Charge aussi la nouvelle collection "posts" en parallèle
-   4. Affiche les 20 premiers dès que le 1er paquet arrive
-   5. Continue en background sans bloquer l'UI
+/* ── CHARGEMENT COMPLET ──
+   Charge tous les chunks profiles_0 à profiles_N en testant jusqu'à ce qu'un chunk n'existe pas.
+   Affiche les premiers dès que le 1er paquet arrive, continue en background.
 */
 let _bgLoadStarted=false,_bgLoadDone=false;
 
@@ -1286,66 +1283,82 @@ async function loadAllProfiles(){
 
   try{
     const {db,doc,getDoc}=await getDB();
-
-    // Lire le manifest pour savoir combien de chunks y'a
-    const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest')).catch(()=>null);
-    const numChunks=manifestSnap&&manifestSnap.exists()?manifestSnap.data().chunks||1:1;
-
     const seen=new Set();
 
-    // Charger le dernier chunk en premier (posts les plus récents dans l'ancien système)
-    const lastSnap=await getDoc(doc(db,'securedb','profiles_'+(numChunks-1))).catch(()=>null);
-    if(lastSnap&&lastSnap.exists()){
-      (lastSnap.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
-    }
+    // Trouver le vrai nombre de chunks en lisant le manifest
+    // Si le manifest est faux, on va quand même tout lire jusqu'au bout
+    const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest')).catch(()=>null);
+    const manifestChunks=manifestSnap&&manifestSnap.exists()?manifestSnap.data().chunks||1:1;
 
-    // Aussi charger l'inbox si elle existe (posts récents)
-    const inboxSnap=await getDoc(doc(db,'securedb','inbox')).catch(()=>null);
-    if(inboxSnap&&inboxSnap.exists()){
-      (inboxSnap.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+    // Charger les 5 derniers chunks en premier (posts les plus récents)
+    const firstBatch=[];
+    for(let i=Math.max(0,manifestChunks-5);i<manifestChunks;i++){
+      firstBatch.push(getDoc(doc(db,'securedb','profiles_'+i)).catch(()=>null));
     }
+    // + inbox
+    firstBatch.push(getDoc(doc(db,'securedb','inbox')).catch(()=>null));
 
-    // Afficher immédiatement ce qu'on a
+    const firstSnaps=await Promise.all(firstBatch);
+    firstSnaps.forEach(s=>{
+      if(!s||!s.exists()) return;
+      (s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+    });
+
     shuffledProfiles=getSessionShuffle([...allProfiles]);
     profilesLoaded=true;
     updateStatCount();
     renderCategories(shuffledProfiles);
     renderProfiles();
 
-    // Charger tout le reste en background
+    // Background: charger TOUS les autres chunks
     if(!_bgLoadStarted){
       _bgLoadStarted=true;
-      _bgLoadAll(db,doc,getDoc,numChunks,seen);
+      _bgLoadAll(db,doc,getDoc,manifestChunks,seen);
     }
-
   }catch(e){
     console.error('loadAllProfiles',e);
     profilesLoaded=true;renderProfiles();
   }
 }
 
-async function _bgLoadAll(db,doc,getDoc,numChunks,seen){
-  // Charger les chunks restants par paquets de 5
-  const BATCH=5;
-  // On charge du plus récent au plus ancien (indices descendants)
-  const indices=[];
-  for(let i=numChunks-2;i>=0;i--) indices.push(i); // skip dernier chunk déjà chargé
+async function _bgLoadAll(db,doc,getDoc,manifestChunks,seen){
+  const BATCH=10; // 10 chunks en parallèle
+  let chunkIdx=0;
+  let consecutiveMissing=0;
 
-  for(let i=0;i<indices.length;i+=BATCH){
-    await new Promise(r=>setTimeout(r,50)); // petit délai pour pas bloquer UI
-    const batch=indices.slice(i,i+BATCH).map(idx=>
-      getDoc(doc(db,'securedb','profiles_'+idx)).catch(()=>null)
-    );
+  // Charger du chunk 0 jusqu'à ce qu'on trouve 3 chunks manquants de suite
+  // (pour gérer les trous et aller bien au-delà du manifest si besoin)
+  while(consecutiveMissing<3){
+    // Skip les chunks déjà chargés (les derniers)
+    const toLoad=[];
+    for(let i=chunkIdx;i<chunkIdx+BATCH;i++){
+      if(i>=manifestChunks-5) break; // déjà chargés
+      toLoad.push(i);
+    }
+    if(!toLoad.length){
+      // On a fini les chunks du manifest, essayer au-delà
+      for(let i=Math.max(chunkIdx,manifestChunks);i<chunkIdx+BATCH;i++) toLoad.push(i);
+    }
+    if(!toLoad.length) break;
+
+    const batch=toLoad.map(i=>getDoc(doc(db,'securedb','profiles_'+i)).catch(()=>null));
     const snaps=await Promise.all(batch);
+    let anyExists=false;
     let added=0;
     snaps.forEach(s=>{
       if(!s||!s.exists()) return;
+      anyExists=true;
       (s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});
     });
+
+    if(!anyExists) consecutiveMissing++;
+    else consecutiveMissing=0;
+
+    chunkIdx+=BATCH;
+
     if(added>0){
       shuffledProfiles=getSessionShuffle([...allProfiles]);
       updateStatCount();
-      // Re-render seulement si l'user est encore au top et pas en train de chercher
       const q=(document.getElementById('app-search')?.value||'').trim();
       if(!q&&!activeCategory&&_renderedCount<40){
         renderCategories(shuffledProfiles);
@@ -1354,9 +1367,10 @@ async function _bgLoadAll(db,doc,getDoc,numChunks,seen){
         renderCategories(shuffledProfiles);
       }
     }
+    await new Promise(r=>setTimeout(r,30));
   }
 
-  // Charger aussi la nouvelle collection "posts" (nouveaux posts)
+  // Charger aussi la collection "posts" (nouveaux posts)
   try{
     const {collection,query,orderBy,getDocs}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const snap=await getDocs(query(collection(db,'posts'),orderBy('id','desc')));
@@ -1364,11 +1378,10 @@ async function _bgLoadAll(db,doc,getDoc,numChunks,seen){
     snap.docs.forEach(d=>{const p=d.data();const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});
     if(added>0){
       shuffledProfiles=getSessionShuffle([...allProfiles]);
-      updateStatCount();
       const q=(document.getElementById('app-search')?.value||'').trim();
       if(!q&&!activeCategory&&_renderedCount<40) renderProfiles();
     }
-  }catch(e){console.error('bgLoad posts collection',e);}
+  }catch(e){console.error('bgLoad posts',e);}
 
   _bgLoadDone=true;
   updateStatCount();
