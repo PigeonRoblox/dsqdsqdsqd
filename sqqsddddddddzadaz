@@ -1250,49 +1250,31 @@ function renderCategories(profiles){
   });
 }
 
-/* ── Firestore: 1 post = 1 doc in collection "posts" ── */
+/* ── DB: 1 post = 1 Firestore doc dans collection "posts" ── */
+
 async function savePostFS(post){
-  // Each post saved as its own Firestore document — no size limit
-  const {db,doc,setDoc}=await getDB();
-  const {collection,doc:docRef}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-  await setDoc(docRef(collection(db,'posts'),String(post.id)),post);
+  const {db}=await getDB();
+  const {collection,doc,setDoc}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  await setDoc(doc(collection(db,'posts'),String(post.id)),post);
 }
 
 async function savePostsBatchFS(posts){
-  // Write posts in parallel batches of 20
   const {db}=await getDB();
-  const {collection,doc:docRef,setDoc,writeBatch}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  const {collection,doc,writeBatch}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
   const col=collection(db,'posts');
-  const BATCH_SIZE=400; // Firestore batch max
-  for(let i=0;i<posts.length;i+=BATCH_SIZE){
+  for(let i=0;i<posts.length;i+=500){
     const batch=writeBatch(db);
-    posts.slice(i,i+BATCH_SIZE).forEach(p=>batch.set(docRef(col,String(p.id)),p));
+    posts.slice(i,i+500).forEach(p=>batch.set(doc(col,String(p.id)),p));
     await batch.commit();
   }
 }
 
-async function loadRecentPostsFS(limitN=50){
-  try{
-    const {db}=await getDB();
-    const {collection,query,orderBy,limit,getDocs}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const q=query(collection(db,'posts'),orderBy('id','desc'),limit(limitN));
-    const snap=await getDocs(q);
-    return snap.docs.map(d=>d.data());
-  }catch(e){console.error('loadRecentPostsFS',e);return [];}
-}
+/* ── Chargement progressif ── */
+// Principe: afficher les 20 premiers VITE, charger tout le reste en arrière-plan
+// silencieusement par pages de 200 — search/catégories marchent sur tout une fois chargé
 
-async function loadAllPostsFS(){
-  try{
-    const {db}=await getDB();
-    const {collection,query,orderBy,getDocs}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const q=query(collection(db,'posts'),orderBy('id','desc'));
-    const snap=await getDocs(q);
-    return snap.docs.map(d=>d.data());
-  }catch(e){console.error('loadAllPostsFS',e);return [];}
-}
-
-/* ── Progressive loader ── */
-let _bgLoadStarted=false,_bgLoadDone=false;
+let _bgLoadStarted=false,_bgLoadDone=false,_lastDoc=null,_noMorePosts=false;
+const FS_PAGE=200; // taille des pages background
 
 async function loadAllProfiles(){
   if(profilesLoaded) return;
@@ -1301,40 +1283,76 @@ async function loadAllProfiles(){
   loadStats().catch(()=>{});
 
   try{
-    // STEP 1: Load 50 most recent posts instantly
-    const recent=await loadRecentPostsFS(50);
+    const {db}=await getDB();
+    const {collection,query,orderBy,limit,getDocs,startAfter}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const col=collection(db,'posts');
+
+    // STEP 1: Charger les 50 premiers posts — affiché en ~1s
+    const firstSnap=await getDocs(query(col,orderBy('id','desc'),limit(50)));
     const seen=new Set();
-    recent.forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+    firstSnap.docs.forEach(d=>{const p=d.data();const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+    _lastDoc=firstSnap.docs[firstSnap.docs.length-1]||null;
+    _noMorePosts=firstSnap.docs.length<50;
+
     shuffledProfiles=getSessionShuffle([...allProfiles]);
     profilesLoaded=true;
+    updateStatCount();
     renderCategories(shuffledProfiles);
     renderProfiles();
 
-    // STEP 2: Load everything else in background
-    if(!_bgLoadStarted){
+    // STEP 2: Charger tout le reste en arrière-plan, page par page
+    // L'UI reste fluide, search/catégories se mettent à jour au fur et à mesure
+    if(!_bgLoadDone&&!_noMorePosts&&!_bgLoadStarted){
       _bgLoadStarted=true;
-      loadAllPostsFS().then(all=>{
-        let added=0;
-        all.forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});
-        if(added>0){
-          shuffledProfiles=getSessionShuffle([...allProfiles]);
-          const sc=document.getElementById('stat-count');
-          if(sc) sc.textContent=allProfiles.length.toLocaleString();
-          const q2=(document.getElementById('app-search')?.value||'').trim();
-          if(!q2&&!activeCategory&&currentSort==='shuffle'&&_renderedCount<40) renderProfiles();
-        }
-        _bgLoadDone=true;
-      }).catch(e=>console.error('bg load',e));
+      _bgLoadAll(db,col,query,orderBy,limit,startAfter,getDocs,seen);
     }
-
-    const sc=document.getElementById('stat-count');
-    if(sc) sc.textContent=allProfiles.length+'...';
   }catch(e){
     console.error('loadAllProfiles',e);
     profilesLoaded=true;
     renderProfiles();
   }
 }
+
+async function _bgLoadAll(db,col,query,orderBy,limit,startAfter,getDocs,seen){
+  // Charge tout en background par pages de FS_PAGE
+  // Pause de 100ms entre chaque page pour pas bloquer l'UI
+  let cursor=_lastDoc;
+  let total=allProfiles.length;
+  while(cursor&&!_noMorePosts){
+    await new Promise(r=>setTimeout(r,100)); // pause UI
+    try{
+      const snap=await getDocs(query(col,orderBy('id','desc'),startAfter(cursor),limit(FS_PAGE)));
+      if(snap.empty||snap.docs.length===0){_noMorePosts=true;break;}
+      let added=0;
+      snap.docs.forEach(d=>{const p=d.data();const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});
+      cursor=snap.docs[snap.docs.length-1];
+      if(snap.docs.length<FS_PAGE) _noMorePosts=true;
+      if(added>0){
+        total+=added;
+        // Re-shuffle pour inclure les nouveaux posts
+        shuffledProfiles=getSessionShuffle([...allProfiles]);
+        updateStatCount();
+        // Re-render seulement si pas de search/filtre actif et on est encore au début
+        const q=(document.getElementById('app-search')?.value||'').trim();
+        if(!q&&!activeCategory&&_renderedCount<40){
+          renderCategories(shuffledProfiles);
+          renderProfiles();
+        } else {
+          // Juste update les catégories silencieusement
+          renderCategories(shuffledProfiles);
+        }
+      }
+    }catch(e){console.error('bgLoad page error',e);await new Promise(r=>setTimeout(r,1000));}
+  }
+  _bgLoadDone=true;
+  updateStatCount();
+}
+
+function updateStatCount(){
+  const sc=document.getElementById('stat-count');
+  if(sc) sc.textContent=allProfiles.length.toLocaleString()+(_bgLoadDone?'':'...');
+}
+
 
 function isNewPost(p){return Date.now()-new Date(p.createdAt).getTime()<86400000;}
 
@@ -1419,6 +1437,7 @@ function updateSentinel(grid,favs){
 function renderProfiles(filter=''){
   ensureSortBar();
   if(_scrollObserver){_scrollObserver.disconnect();_scrollObserver=null;}
+
   const grid=document.getElementById('profiles-grid');
   const sub=document.getElementById('profile-count-label');
   if(sub) sub.textContent=`${allProfiles.length} post${allProfiles.length!==1?'s':''}`;
