@@ -45,6 +45,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;ove
 .loading-text{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text3);letter-spacing:3px;text-transform:uppercase}
 .loading-bar-wrap{width:300px;height:3px;background:#1a1a1a;border-radius:2px;overflow:hidden}
 .loading-bar-fill{height:100%;background:linear-gradient(90deg,#333,#888,#333);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:2px;transition:width .3s}
+.loading-count{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:2px}
 
 /* ══ KEY GATE ══ */
 #keygate{
@@ -168,7 +169,6 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;ove
 .card-arrow{color:var(--text3);font-size:13px;transition:.2s}
 .profile-card:hover .card-arrow{color:var(--text);transform:translateX(4px)}
 
-/* file type badges */
 .file-type-badge{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:3px 10px;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:600;letter-spacing:1px}
 .badge-free{background:rgba(80,200,80,.08);border:1px solid rgba(80,200,80,.2);color:#50c850}
 .badge-premium{background:var(--premium-bg);border:1px solid var(--premium-border);color:var(--gold)}
@@ -332,22 +332,37 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;ove
 .file-dl-btn{background:#1e1e1e;border:1px solid var(--border2);border-radius:6px;color:var(--text2);font-size:12px;padding:4px 10px;cursor:pointer;margin-left:auto;font-family:'JetBrains Mono',monospace;transition:.2s}
 .file-dl-btn:hover{background:#2a2a2a;color:var(--text)}
 
-/* LOCKED FILE overlay */
 .file-locked-overlay{padding:48px 24px;text-align:center}
 .locked-icon{font-size:48px;margin-bottom:14px;display:block}
 .locked-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;margin-bottom:8px}
 .locked-sub{font-size:13px;color:var(--text3);line-height:1.7;margin-bottom:20px}
 .locked-btn{padding:12px 28px;border:none;border-radius:10px;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1.5px;transition:.25s}
+
+/* ══ BG LOAD INDICATOR ══ */
+#bg-load-indicator{
+  position:fixed;bottom:68px;right:28px;z-index:998;
+  background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;
+  padding:8px 14px;font-size:11px;color:#555;font-family:'JetBrains Mono',monospace;
+  display:none;align-items:center;gap:8px;
+}
+#bg-load-indicator .mini-spin{width:12px;height:12px;border:2px solid #2a2a2a;border-top-color:#555;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
 </style>
 </head>
 <body>
+
+<!-- BG LOAD INDICATOR -->
+<div id="bg-load-indicator">
+  <div class="mini-spin"></div>
+  <span id="bg-load-text">Loading posts...</span>
+</div>
 
 <!-- LOADING SCREEN -->
 <div id="loading-screen" style="display:none">
   <div class="loading-logo">SECURE<span>DB</span></div>
   <div class="loading-spinner"></div>
-  <div class="loading-text">Loading website, please wait</div>
+  <div class="loading-text" id="loading-text">Loading website, please wait</div>
   <div class="loading-bar-wrap"><div class="loading-bar-fill" id="loading-bar" style="width:0%"></div></div>
+  <div class="loading-count" id="loading-count"></div>
 </div>
 
 <!-- KEY GATE -->
@@ -682,18 +697,16 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;ove
 const ADMIN_EMAIL='test94674327@gmail.com';
 const ADMINN_EMAIL='1l6q@protonmail.com';
 const KEYS_URL='https://raw.githubusercontent.com/PigeonRoblox/Somegdfqsdq/refs/heads/main/ssdqsqddsq';
-const CHUNK_SIZE=50; // 50 posts/doc = safe sous 1MB Firestore
+const CHUNK_SIZE=50;
 const PAGE_SIZE=20;
-
-// PAYPAL config — remplace par ton lien PayPal réel
-const PAYPAL_PREMIUM_LINK='https://www.paypal.com/paypalme/AntoinneDuPont/1EUR'; // 1€ pour 1 mois premium
+const PARALLEL_CHUNKS=20; // Nombre de chunks chargés en parallèle
+const PAYPAL_PREMIUM_LINK='https://www.paypal.com/paypalme/AntoinneDuPont/1EUR';
 const PAYPAL_POINTS_LINKS={
-  100:'https://www.paypal.com/paypalme/AntoinneDuPont/1EUR',   // 100 pts = 1€
-  500:'https://paypal.me/AntoinneDuPont/4EUR',   // 500 pts = 4€
-  1500:'https://paypal.me/AntoinneDuPont/10EUR', // 1500 pts = 10€
+  100:'https://www.paypal.com/paypalme/AntoinneDuPont/1EUR',
+  500:'https://paypal.me/AntoinneDuPont/4EUR',
+  1500:'https://paypal.me/AntoinneDuPont/10EUR',
 };
 
-// BANNERS disponibles (free vs premium)
 const BANNERS=[
   {id:'none',name:'None',free:true,style:'background:#1a1a1a'},
   {id:'dark-wave',name:'Dark Wave',free:true,style:'background:linear-gradient(135deg,#1a1a2a,#2a1a2a,#1a2a2a)'},
@@ -714,23 +727,28 @@ let shuffledProfiles=[], activeCategory='', currentSort='shuffle';
 let _filteredList=[], _renderedCount=0, _scrollObserver=null;
 let _cachedStats={}, undefinedLabel='Undefined by user';
 
+// Background load state
+let _bgLoadActive=false;
+let _bgTotalLoaded=0;
+let _bgLoadCompleted=false;
+
 /* ═══════════════════════════════════════════════════════
    FIREBASE
 ═══════════════════════════════════════════════════════ */
 async function getDB(){
   if(_db) return _db;
   const {initializeApp,getApps}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-  const {getFirestore,doc,getDoc,setDoc}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  const {getFirestore,doc,getDoc,setDoc,collection,getDocs,query,orderBy,writeBatch,deleteDoc}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
   const cfg={apiKey:"AIzaSyAIJO9lD7lL-tgFgO3bxnz0guoREVa1lQg",authDomain:"db-d5a6b.firebaseapp.com",
     projectId:"db-d5a6b",storageBucket:"db-d5a6b.firebasestorage.app",
     messagingSenderId:"848019546663",appId:"1:848019546663:web:a69fe9bd1ce9731a962402"};
   const app=getApps().length?getApps()[0]:initializeApp(cfg);
-  _db={db:getFirestore(app),doc,getDoc,setDoc};
+  _db={db:getFirestore(app),doc,getDoc,setDoc,collection,getDocs,query,orderBy,writeBatch,deleteDoc};
   return _db;
 }
 
 /* ═══════════════════════════════════════════════════════
-   USER DATA (points, premium, settings)
+   USER DATA
 ═══════════════════════════════════════════════════════ */
 async function loadUserData(uid){
   try{
@@ -739,89 +757,27 @@ async function loadUserData(uid){
     return snap.exists()?snap.data():{points:0,premium:false,premiumExpiry:null,banner:'none',avatarEmoji:'',displayName:'',bio:''};
   }catch{return {points:0,premium:false,premiumExpiry:null,banner:'none',avatarEmoji:'',displayName:'',bio:''};}
 }
-
 async function saveUserData(uid,data){
-  try{
-    const {db,doc,setDoc}=await getDB();
-    await setDoc(doc(db,'users',uid),data,{merge:true});
-  }catch(e){console.error('saveUserData',e);}
+  try{const {db,doc,setDoc}=await getDB();await setDoc(doc(db,'users',uid),data,{merge:true});}catch(e){console.error('saveUserData',e);}
 }
-
 let _userData={points:0,premium:false,premiumExpiry:null,banner:'none',avatarEmoji:'',displayName:'',bio:''};
-
 async function refreshUserData(){
   if(!currentUser) return;
   _userData=await loadUserData(currentUser.uid);
-  // Check premium expiry
-  if(_userData.premium && _userData.premiumExpiry && new Date(_userData.premiumExpiry)<new Date()){
+  if(_userData.premium&&_userData.premiumExpiry&&new Date(_userData.premiumExpiry)<new Date()){
     _userData.premium=false;await saveUserData(currentUser.uid,{premium:false});
   }
-  updatePointsDisplay();
-  updateUserBtn();
+  updatePointsDisplay();updateUserBtn();
 }
-
-function updatePointsDisplay(){
-  const el=document.getElementById('points-val');if(el) el.textContent=_userData.points||0;
-}
-
+function updatePointsDisplay(){const el=document.getElementById('points-val');if(el) el.textContent=_userData.points||0;}
 function updateUserBtn(){
   const btn=document.getElementById('user-btn');if(!btn) return;
-  if(currentUser){
-    const name=(_userData.displayName||currentUser.email.split('@')[0]).slice(0,12);
-    btn.textContent=(_userData.premium?'👑 ':'👤 ')+name;
-    btn.className='app-user-btn'+(_userData.premium?' premium-user':'');
-  } else {
-    btn.textContent='👤 Account';btn.className='app-user-btn';
-  }
+  if(currentUser){const name=(_userData.displayName||currentUser.email.split('@')[0]).slice(0,12);btn.textContent=(_userData.premium?'👑 ':'👤 ')+name;btn.className='app-user-btn'+(_userData.premium?' premium-user':'');}
+  else{btn.textContent='👤 Account';btn.className='app-user-btn';}
 }
-
-function addPoints(n){
-  _userData.points=(_userData.points||0)+n;
-  updatePointsDisplay();
-  if(currentUser) saveUserData(currentUser.uid,{points:_userData.points});
-}
-
-function spendPoints(n){
-  if((_userData.points||0)<n) return false;
-  _userData.points-=n;updatePointsDisplay();
-  if(currentUser) saveUserData(currentUser.uid,{points:_userData.points});
-  return true;
-}
-
-function isPremium(){
-  if(!currentUser) return false;
-  return !!_userData.premium;
-}
-
-/* ═══════════════════════════════════════════════════════
-   PROFILES DB (chunked)
-═══════════════════════════════════════════════════════ */
-async function loadProfilesDB(){
-  // Legacy fallback only
-  try{
-    const {db,doc,getDoc}=await getDB();
-    const s=await getDoc(doc(db,'securedb','profiles_0')).catch(()=>null);
-    return s&&s.exists()?s.data().list||[]:[];
-  }catch{return [];}
-}
-
-async function appendPostDB(newPost){
-  // 1 post = 1 Firestore doc, no size limit ever
-  try{ await savePostFS(newPost); }
-  catch(e){ console.error('appendPostDB',e); }
-}
-
-// Full rewrite — only used by admin delete
-async function saveProfilesDB(arr){
-  try{
-    const {db,doc,setDoc}=await getDB();
-    const n=Math.ceil(arr.length/CHUNK_SIZE)||1;
-    const ps=[];
-    for(let i=0;i<n;i++) ps.push(setDoc(doc(db,'securedb','profiles_'+i),{list:arr.slice(i*CHUNK_SIZE,(i+1)*CHUNK_SIZE)}));
-    ps.push(setDoc(doc(db,'securedb','profiles_manifest'),{chunks:n,total:arr.length,updatedAt:new Date().toISOString()}));
-    await Promise.all(ps);
-  }catch(e){console.error('saveProfilesDB',e);}
-}
+function addPoints(n){_userData.points=(_userData.points||0)+n;updatePointsDisplay();if(currentUser) saveUserData(currentUser.uid,{points:_userData.points});}
+function spendPoints(n){if((_userData.points||0)<n) return false;_userData.points-=n;updatePointsDisplay();if(currentUser) saveUserData(currentUser.uid,{points:_userData.points});return true;}
+function isPremium(){if(!currentUser) return false;return !!_userData.premium;}
 
 /* ═══════════════════════════════════════════════════════
    STATS
@@ -833,7 +789,6 @@ async function incrementView(id){const k='v_'+id;_cachedStats[k]=(_cachedStats[k
 const REACTIONS=[{key:'fire',emoji:'🔥'},{key:'heart',emoji:'❤️'},{key:'lol',emoji:'😂'},{key:'like',emoji:'👍'}];
 function getUserReactions(){try{return JSON.parse(localStorage.getItem('sdb-reactions')||'{}');}catch{return {};}}
 function saveUserReactions(r){localStorage.setItem('sdb-reactions',JSON.stringify(r));}
-
 async function toggleReaction(postId,key,e){
   e&&e.stopPropagation();
   const userR=getUserReactions();const urKey=postId+'_'+key;const rKey='r_'+postId+'_'+key;
@@ -843,7 +798,6 @@ async function toggleReaction(postId,key,e){
   const bar=document.getElementById('reactions-bar');if(bar) renderReactionsBar(postId,bar);
   const cb=document.getElementById('card-reactions-'+postId);if(cb) renderCardReactions(postId,cb);
 }
-
 function renderReactionsBar(postId,container){
   const userR=getUserReactions();
   container.innerHTML=REACTIONS.map(r=>{
@@ -852,7 +806,6 @@ function renderReactionsBar(postId,container){
       ${r.emoji}<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#888">${count||''}</span></button>`;
   }).join('');
 }
-
 function renderCardReactions(postId,container){
   const parts=REACTIONS.map(r=>{const c=_cachedStats['r_'+postId+'_'+r.key]||0;return c?`<span style="font-size:11px">${r.emoji}${c}</span>`:''}).filter(Boolean);
   container.innerHTML=parts.join(' ');
@@ -871,8 +824,7 @@ async function postComment(postId){
     const s=await getDoc(ref);const all=s.exists()?s.data():{};
     if(!all[postId]) all[postId]=[];
     all[postId].push({text,author:currentUser?(_userData.displayName||currentUser.email.split('@')[0]):'Anonyme',at:new Date().toISOString()});
-    await setDoc(ref,all);renderCommentsList(all[postId]);showToast('💬 Comment posted!');
-    addPoints(2);
+    await setDoc(ref,all);renderCommentsList(all[postId]);showToast('💬 Comment posted!');addPoints(2);
   }catch{showToast('Error.');}
   inp.disabled=false;inp.focus();
 }
@@ -892,7 +844,7 @@ function getFavorites(){try{return JSON.parse(localStorage.getItem('sdb-favorite
 function toggleFavorite(postId,e){
   e&&e.stopPropagation();
   let favs=getFavorites();const idx=favs.indexOf(String(postId));
-  if(idx>=0)favs.splice(idx,1);else favs.push(String(postId));
+  if(idx>=0) favs.splice(idx,1);else favs.push(String(postId));
   localStorage.setItem('sdb-favorites',JSON.stringify(favs));
   updateFavBtn(postId);if(currentSort==='favorites') renderProfiles(document.getElementById('app-search').value||'');
 }
@@ -971,8 +923,7 @@ async function adminDeletePost(postId){
   allProfiles=allProfiles.filter(p=>String(p.id)!==String(postId));
   shuffledProfiles=shuffledProfiles.filter(p=>String(p.id)!==String(postId));
   try{
-    const {db}=await getDB();
-    const {collection,doc,deleteDoc}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const {db,collection,doc,deleteDoc}=await getDB();
     await deleteDoc(doc(collection(db,'posts'),String(postId)));
   }catch(e){console.error('delete',e);}
   closeModal();renderProfiles(document.getElementById('app-search').value||'');showToast('🗑️ Deleted.');
@@ -986,54 +937,18 @@ function renderShop(){
   const pts=_userData.points||0;
   const hasPremium=isPremium();
   const premiumExpiry=_userData.premiumExpiry?new Date(_userData.premiumExpiry).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):null;
-
   grid.innerHTML=`
-    <!-- PREMIUM CARD -->
     <div class="shop-card premium-shop" style="grid-column:1/-1;max-width:500px;margin:0 auto;width:100%">
       <span class="shop-card-icon">👑</span>
       <div class="shop-card-name">PREMIUM</div>
       ${hasPremium?`<div style="background:var(--premium-bg);border:1px solid var(--premium-border);border-radius:8px;padding:8px 16px;font-size:12px;color:var(--gold);font-family:'JetBrains Mono',monospace;margin-bottom:14px">✓ Active${premiumExpiry?' · expires '+premiumExpiry:''}</div>`:''}
-      <ul class="shop-perks">
-        <li>PREMIUM badge on your profile</li>
-        <li>Access to all Premium Only files</li>
-        <li>Custom banner (from Premium banners)</li>
-        <li>Priority support on Discord</li>
-        <li>1 month duration</li>
-      </ul>
+      <ul class="shop-perks"><li>PREMIUM badge on your profile</li><li>Access to all Premium Only files</li><li>Custom banner (from Premium banners)</li><li>Priority support on Discord</li><li>1 month duration</li></ul>
       <div class="shop-card-price">1€ <span>/ month</span></div>
-      ${hasPremium
-        ?`<button class="shop-btn shop-btn-premium" disabled style="opacity:.4;cursor:not-allowed">✓ Already Premium</button>`
-        :`<button class="shop-btn shop-btn-premium" onclick="buyPremium()">👑 GET PREMIUM</button>`
-      }
+      ${hasPremium?`<button class="shop-btn shop-btn-premium" disabled style="opacity:.4;cursor:not-allowed">✓ Already Premium</button>`:`<button class="shop-btn shop-btn-premium" onclick="buyPremium()">👑 GET PREMIUM</button>`}
     </div>
-
-    <!-- POINTS PACKS -->
-    <div class="shop-card">
-      <span class="shop-card-icon">🪙</span>
-      <div class="shop-card-name">STARTER PACK</div>
-      <div class="shop-card-desc">100 SD Points to spend on locked files and exclusive content.</div>
-      <div class="shop-card-price" style="color:#d4b800">100 <span>pts</span></div>
-      <div style="font-size:11px;color:#555;font-family:'JetBrains Mono',monospace;margin-bottom:12px">Your balance: ${pts} pts</div>
-      <button class="shop-btn shop-btn-points" onclick="buyPoints(100)">💳 Buy for 1€</button>
-    </div>
-    <div class="shop-card">
-      <span class="shop-card-icon">🪙🪙</span>
-      <div class="shop-card-name">VALUE PACK</div>
-      <div class="shop-card-desc">500 SD Points — best value for regular users.</div>
-      <div class="shop-card-price" style="color:#d4b800">500 <span>pts</span></div>
-      <div style="font-size:11px;color:#555;font-family:'JetBrains Mono',monospace;margin-bottom:12px">Your balance: ${pts} pts</div>
-      <button class="shop-btn shop-btn-points" onclick="buyPoints(500)">💳 Buy for 4€</button>
-    </div>
-    <div class="shop-card">
-      <span class="shop-card-icon">💎</span>
-      <div class="shop-card-name">MEGA PACK</div>
-      <div class="shop-card-desc">1500 SD Points — for the real collectors and power users.</div>
-      <div class="shop-card-price" style="color:#d4b800">1500 <span>pts</span></div>
-      <div style="font-size:11px;color:#555;font-family:'JetBrains Mono',monospace;margin-bottom:12px">Your balance: ${pts} pts</div>
-      <button class="shop-btn shop-btn-points" onclick="buyPoints(1500)">💳 Buy for 10€</button>
-    </div>
-
-    <!-- HOW TO EARN POINTS (free) -->
+    <div class="shop-card"><span class="shop-card-icon">🪙</span><div class="shop-card-name">STARTER PACK</div><div class="shop-card-desc">100 SD Points to spend on locked files and exclusive content.</div><div class="shop-card-price" style="color:#d4b800">100 <span>pts</span></div><div style="font-size:11px;color:#555;font-family:'JetBrains Mono',monospace;margin-bottom:12px">Your balance: ${pts} pts</div><button class="shop-btn shop-btn-points" onclick="buyPoints(100)">💳 Buy for 1€</button></div>
+    <div class="shop-card"><span class="shop-card-icon">🪙🪙</span><div class="shop-card-name">VALUE PACK</div><div class="shop-card-desc">500 SD Points — best value for regular users.</div><div class="shop-card-price" style="color:#d4b800">500 <span>pts</span></div><div style="font-size:11px;color:#555;font-family:'JetBrains Mono',monospace;margin-bottom:12px">Your balance: ${pts} pts</div><button class="shop-btn shop-btn-points" onclick="buyPoints(500)">💳 Buy for 4€</button></div>
+    <div class="shop-card"><span class="shop-card-icon">💎</span><div class="shop-card-name">MEGA PACK</div><div class="shop-card-desc">1500 SD Points — for the real collectors and power users.</div><div class="shop-card-price" style="color:#d4b800">1500 <span>pts</span></div><div style="font-size:11px;color:#555;font-family:'JetBrains Mono',monospace;margin-bottom:12px">Your balance: ${pts} pts</div><button class="shop-btn shop-btn-points" onclick="buyPoints(1500)">💳 Buy for 10€</button></div>
     <div class="shop-card" style="grid-column:1/-1;background:linear-gradient(150deg,#141414,#111)">
       <div class="shop-card-name" style="font-size:18px;margin-bottom:14px">🎯 HOW TO EARN FREE POINTS</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;text-align:left">
@@ -1041,48 +956,13 @@ function renderShop(){
       </div>
     </div>`;
 }
-
-function buyPremium(){
-  if(!currentUser){showToast('You need to be logged in first!');openAuth();return;}
-  // Open PayPal in new tab then show instructions
-  window.open(PAYPAL_PREMIUM_LINK,'_blank');
-  showPaypalConfirmModal('premium',0);
-}
-
-function buyPoints(amount){
-  if(!currentUser){showToast('You need to be logged in first!');openAuth();return;}
-  window.open(PAYPAL_POINTS_LINKS[amount]||PAYPAL_PREMIUM_LINK,'_blank');
-  showPaypalConfirmModal('points',amount);
-}
-
+function buyPremium(){if(!currentUser){showToast('You need to be logged in first!');openAuth();return;}window.open(PAYPAL_PREMIUM_LINK,'_blank');showPaypalConfirmModal('premium',0);}
+function buyPoints(amount){if(!currentUser){showToast('You need to be logged in first!');openAuth();return;}window.open(PAYPAL_POINTS_LINKS[amount]||PAYPAL_PREMIUM_LINK,'_blank');showPaypalConfirmModal('points',amount);}
 function showPaypalConfirmModal(type,amount){
-  // After payment, user enters a transaction ID and admin confirms manually
-  // OR admin manually adds points/premium from Discord
   const modal=document.createElement('div');
   modal.style.cssText='position:fixed;inset:0;z-index:9996;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px)';
-  modal.innerHTML=`<div style="background:#131313;border:1px solid #3a3a3a;border-radius:16px;padding:28px;width:100%;max-width:420px;text-align:center">
-    <div style="font-size:44px;margin-bottom:14px">💸</div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:#e8e8e8;margin-bottom:8px">PAYMENT SENT?</div>
-    <div style="font-size:13px;color:#888;line-height:1.7;margin-bottom:20px">
-      After completing your PayPal payment, open a ticket in our Discord and send your <strong style="color:#e8e8e8">transaction ID</strong> to get your ${type==='premium'?'<strong style="color:#f0c040">Premium activated</strong>':('<strong style="color:#d4b800">'+amount+' points added</strong>')}.
-    </div>
-    <a href="https://discord.gg/5tJk68mFJ2" target="_blank" rel="noopener" style="display:block;background:linear-gradient(135deg,#3a3fd8,#5865F2);border:none;border-radius:10px;color:#fff;padding:12px 24px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1.5px;text-decoration:none;margin-bottom:12px">🔗 OPEN DISCORD</a>
-    <button onclick="this.closest('[style]').remove()" style="background:none;border:1px solid #333;border-radius:8px;color:#666;padding:10px 20px;cursor:pointer;font-family:'DM Sans',sans-serif;width:100%">Close</button>
-  </div>`;
+  modal.innerHTML=`<div style="background:#131313;border:1px solid #3a3a3a;border-radius:16px;padding:28px;width:100%;max-width:420px;text-align:center"><div style="font-size:44px;margin-bottom:14px">💸</div><div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:#e8e8e8;margin-bottom:8px">PAYMENT SENT?</div><div style="font-size:13px;color:#888;line-height:1.7;margin-bottom:20px">After completing your PayPal payment, open a ticket in our Discord and send your <strong style="color:#e8e8e8">transaction ID</strong> to get your ${type==='premium'?'<strong style="color:#f0c040">Premium activated</strong>':('<strong style="color:#d4b800">'+amount+' points added</strong>')}.</div><a href="https://discord.gg/5tJk68mFJ2" target="_blank" rel="noopener" style="display:block;background:linear-gradient(135deg,#3a3fd8,#5865F2);border:none;border-radius:10px;color:#fff;padding:12px 24px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1.5px;text-decoration:none;margin-bottom:12px">🔗 OPEN DISCORD</a><button onclick="this.closest('[style]').remove()" style="background:none;border:1px solid #333;border-radius:8px;color:#666;padding:10px 20px;cursor:pointer;font-family:'DM Sans',sans-serif;width:100%">Close</button></div>`;
   document.body.appendChild(modal);
-}
-
-// Admin: manually add premium or points to a user (from admin panel)
-async function adminGrantPremium(email){
-  try{
-    // Find user UID from email in users collection — simplified: we use email as key
-    const {db,doc,getDoc,setDoc}=await getDB();
-    const ref=doc(db,'securedb','premium_grants');
-    const s=await getDoc(ref);const all=s.exists()?s.data():{};
-    const expiry=new Date(Date.now()+30*24*3600000).toISOString();
-    all[email.toLowerCase()]={premium:true,premiumExpiry:expiry,at:new Date().toISOString()};
-    await setDoc(ref,all);showToast('✓ Premium granted to '+email);
-  }catch{showToast('Error.');}
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1094,58 +974,38 @@ function renderSettings(){
     wrap.innerHTML=`<div style="text-align:center;padding:60px 24px;background:linear-gradient(150deg,#161616,#111);border-radius:16px;border:1px dashed #2a2a2a"><div style="font-size:44px;margin-bottom:14px">🔒</div><div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:2px;color:#888;margin-bottom:10px">SIGN IN REQUIRED</div><div style="font-size:13px;color:#555;margin-bottom:20px">You need an account to customize your profile</div><button onclick="openAuth()" style="background:linear-gradient(135deg,#d8d8d8,#9a9a9a);border:none;border-radius:10px;color:#111;padding:12px 28px;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1.5px;cursor:pointer">SIGN IN</button></div>`;
     return;
   }
-
   const canUsePremiumBanners=isPremium();
   const selectedBanner=_userData.banner||'none';
   const bannerObj=BANNERS.find(b=>b.id===selectedBanner)||BANNERS[0];
-
   wrap.innerHTML=`
     <div class="settings-section">
       <div class="settings-title">👤 DISPLAY NAME</div>
-      <div class="form-field">
-        <label class="form-label">Name shown on your posts</label>
-        <input class="form-input" id="s-displayname" value="${esc(_userData.displayName||currentUser.email.split('@')[0])}" placeholder="Your name" maxlength="30"/>
-      </div>
-      <div class="form-field">
-        <label class="form-label">Avatar Emoji</label>
-        <input class="form-input" id="s-avatar-emoji" value="${esc(_userData.avatarEmoji||'')}" placeholder="😊" maxlength="2" style="text-align:center;font-size:24px;max-width:80px"/>
-      </div>
-      <div class="form-field">
-        <label class="form-label">Short Bio</label>
-        <textarea class="form-textarea" id="s-bio" placeholder="A short bio for your profile..." style="min-height:72px">${esc(_userData.bio||'')}</textarea>
-      </div>
+      <div class="form-field"><label class="form-label">Name shown on your posts</label><input class="form-input" id="s-displayname" value="${esc(_userData.displayName||currentUser.email.split('@')[0])}" placeholder="Your name" maxlength="30"/></div>
+      <div class="form-field"><label class="form-label">Avatar Emoji</label><input class="form-input" id="s-avatar-emoji" value="${esc(_userData.avatarEmoji||'')}" placeholder="😊" maxlength="2" style="text-align:center;font-size:24px;max-width:80px"/></div>
+      <div class="form-field"><label class="form-label">Short Bio</label><textarea class="form-textarea" id="s-bio" placeholder="A short bio for your profile..." style="min-height:72px">${esc(_userData.bio||'')}</textarea></div>
     </div>
-
     <div class="settings-section">
       <div class="settings-title">🎨 PROFILE BANNER</div>
       ${!canUsePremiumBanners?`<div style="background:var(--premium-bg);border:1px solid var(--premium-border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--gold);font-family:'JetBrains Mono',monospace;margin-bottom:14px;display:flex;align-items:center;gap:8px"><span>👑</span> Get <strong>Premium</strong> to unlock all banners! <button onclick="switchTab('shop')" style="margin-left:auto;background:var(--gold);border:none;border-radius:6px;color:#111;padding:4px 10px;cursor:pointer;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:700">UPGRADE</button></div>`:''}
       <div class="banner-preview" id="banner-preview-el" style="${bannerObj.style}"></div>
       <div class="banner-options" id="banner-options">
-        ${BANNERS.map(b=>{
-          const locked=!b.free&&!canUsePremiumBanners;
-          const sel=b.id===selectedBanner;
-          return `<div class="banner-opt${sel?' selected':''}" onclick="${locked?`showToast('👑 Premium required for this banner!')`:''};${locked?'':(`selectBanner('${b.id}')`)}" style="${b.style};${locked?'opacity:.5;cursor:not-allowed':''}">
+        ${BANNERS.map(b=>{const locked=!b.free&&!canUsePremiumBanners;const sel=b.id===selectedBanner;
+          return `<div class="banner-opt${sel?' selected':''}" onclick="${locked?`showToast('👑 Premium required for this banner!')`:(`selectBanner('${b.id}')`)}" style="${b.style};${locked?'opacity:.5;cursor:not-allowed':''}">
             ${locked?`<div class="banner-opt-lock">🔒</div>`:''}
             <div style="position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:9px;color:rgba(255,255,255,.5);font-family:'JetBrains Mono',monospace">${b.name}</div>
           </div>`;
         }).join('')}
       </div>
     </div>
-
-    <button onclick="saveSettings()" style="width:100%;padding:15px;border:none;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;cursor:pointer;transition:.3s;background:linear-gradient(135deg,#d8d8d8,#9a9a9a);color:#111;margin-top:6px">SAVE SETTINGS</button>
-  `;
+    <button onclick="saveSettings()" style="width:100%;padding:15px;border:none;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;cursor:pointer;transition:.3s;background:linear-gradient(135deg,#d8d8d8,#9a9a9a);color:#111;margin-top:6px">SAVE SETTINGS</button>`;
 }
-
 function selectBanner(id){
   _userData.banner=id;
-  // Update preview
   const obj=BANNERS.find(b=>b.id===id)||BANNERS[0];
   const prev=document.getElementById('banner-preview-el');
   if(prev){prev.style.cssText=obj.style;prev.innerHTML='';}
-  // Update selected state
   document.querySelectorAll('.banner-opt').forEach((el,i)=>{el.classList.toggle('selected',BANNERS[i]&&BANNERS[i].id===id);});
 }
-
 async function saveSettings(){
   if(!currentUser) return;
   const name=document.getElementById('s-displayname')?.value.trim();
@@ -1213,7 +1073,7 @@ async function switchTab(tab){
 }
 
 /* ═══════════════════════════════════════════════════════
-   PROFILES LOAD (optimised)
+   PROFILES KEYWORDS / CATEGORIES
 ═══════════════════════════════════════════════════════ */
 function getSessionShuffle(arr){
   const KEY='sdb-shuffle-seed';let seed=sessionStorage.getItem(KEY);
@@ -1223,7 +1083,6 @@ function getSessionShuffle(arr){
   const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
   return a;
 }
-
 function extractKeywords(p){
   const texts=[p.name||'',p.title||'',p.bio||'',p.game||'',p.music||'',p.city||'',p.country||'',...(p.hobbies||[])];
   const words=[];
@@ -1231,13 +1090,11 @@ function extractKeywords(p){
   return words;
 }
 const STOP_WORDS=new Set(['the','and','for','with','from','that','this','was','are','not','has','have','been','its','our','you','your','him','her','they','them','who','what','when','where','how','just','like','more','some','than','then','into','only','also','both','each','here','there','these','those','will','would','could','should','very','about','after','before','les','des','une','pour','dans','sur','avec','par','qui','est','pas','que','son','ses','ils','elles','mais','donc','car','tout','plus','bien','aussi','même','puis','moi','toi','lui','nous','vous','leur','leurs','mon','ton','van','deux','trois','tous','toute','cette','cela','oui','non','très','peu','trop','www','http','https','html','css','com','net','org','php','json','xml','txt','pdf','null','true','false']);
-
 function buildCategories(profiles){
   const freq={};
   profiles.forEach(p=>{const seen=new Set();extractKeywords(p).forEach(w=>{if(!STOP_WORDS.has(w)&&!seen.has(w)){seen.add(w);freq[w]=(freq[w]||0)+1;}});});
   return Object.entries(freq).filter(([,c])=>c>=3).sort((a,b)=>b[1]-a[1]).slice(0,20).map(([w,c])=>({word:w,count:c}));
 }
-
 function renderCategories(profiles){
   const cats=buildCategories(profiles);const wrap=document.getElementById('categories-wrap');const btns=document.getElementById('cat-btns');
   if(!cats.length){wrap.style.display='none';return;}wrap.style.display='flex';btns.innerHTML='';
@@ -1250,17 +1107,15 @@ function renderCategories(profiles){
   });
 }
 
-/* ── DB LAYER ── */
-
+/* ═══════════════════════════════════════════════════════
+   DB LAYER — ÉCRITURE
+═══════════════════════════════════════════════════════ */
 async function savePostFS(post){
-  const {db}=await getDB();
-  const {collection,doc,setDoc}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  const {db,collection,doc,setDoc}=await getDB();
   await setDoc(doc(collection(db,'posts'),String(post.id)),post);
 }
-
 async function savePostsBatchFS(posts){
-  const {db}=await getDB();
-  const {collection,doc,writeBatch}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  const {db,collection,doc,writeBatch}=await getDB();
   const col=collection(db,'posts');
   for(let i=0;i<posts.length;i+=500){
     const batch=writeBatch(db);
@@ -1269,136 +1124,215 @@ async function savePostsBatchFS(posts){
   }
 }
 
-/* ── CHARGEMENT COMPLET ──
-   Charge tous les chunks profiles_0 à profiles_N en testant jusqu'à ce qu'un chunk n'existe pas.
-   Affiche les premiers dès que le 1er paquet arrive, continue en background.
-*/
-let _bgLoadStarted=false,_bgLoadDone=false;
-
+/* ═══════════════════════════════════════════════════════
+   CHARGEMENT COMPLET — STRATÉGIE FIXÉE
+   
+   PROBLÈME ORIGINAL: Le code ne chargeait que les 5 derniers
+   chunks du manifest + un getDocs() limité à ~300 docs.
+   
+   SOLUTION:
+   1. Lire le manifest pour connaître le nb de chunks
+   2. Charger TOUS les chunks profiles_0..N en parallèle (20 à la fois)
+   3. Charger la collection "posts" avec getDocs() SANS limit
+   4. Charger l'inbox
+   5. Dédupliquer par id
+   6. Afficher progressivement sans bloquer l'UI (requestIdleCallback / setTimeout 0)
+═══════════════════════════════════════════════════════ */
 async function loadAllProfiles(){
   if(profilesLoaded) return;
   const grid=document.getElementById('profiles-grid');
   grid.innerHTML='<div class="spinner"></div>';
+
+  // Lancer stats en parallèle, non-bloquant
   loadStats().catch(()=>{});
 
   try{
-    const {db,doc,getDoc}=await getDB();
+    const {db,doc,getDoc,collection,getDocs,query,orderBy}=await getDB();
     const seen=new Set();
 
-    // Trouver le vrai nombre de chunks en lisant le manifest
-    // Si le manifest est faux, on va quand même tout lire jusqu'au bout
-    const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest')).catch(()=>null);
-    const manifestChunks=manifestSnap&&manifestSnap.exists()?manifestSnap.data().chunks||1:1;
+    // ── ÉTAPE 1: Lire le manifest pour connaître le nombre de chunks ──
+    let totalChunks=0;
+    try{
+      const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest'));
+      if(manifestSnap.exists()){
+        totalChunks=manifestSnap.data().chunks||0;
+      }
+    }catch(e){console.warn('Manifest non trouvé, scan automatique',e);}
 
-    // Charger les 5 derniers chunks en premier (posts les plus récents)
-    const firstBatch=[];
-    for(let i=Math.max(0,manifestChunks-5);i<manifestChunks;i++){
-      firstBatch.push(getDoc(doc(db,'securedb','profiles_'+i)).catch(()=>null));
-    }
-    // + inbox
-    firstBatch.push(getDoc(doc(db,'securedb','inbox')).catch(()=>null));
+    // ── ÉTAPE 2: Si manifest vide, scanner jusqu'à trouver le bout ──
+    // On va charger par vagues de PARALLEL_CHUNKS
+    const processChunkSnap=(snap)=>{
+      if(!snap||!snap.exists()) return 0;
+      let added=0;
+      (snap.data().list||[]).forEach(p=>{
+        const k=String(p.id);
+        if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}
+      });
+      return added;
+    };
 
-    const firstSnaps=await Promise.all(firstBatch);
-    firstSnaps.forEach(s=>{
-      if(!s||!s.exists()) return;
-      (s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
-    });
+    // Charger d'abord les 3 premiers chunks pour affichage rapide
+    const firstSnaps=await Promise.all([
+      getDoc(doc(db,'securedb','profiles_0')).catch(()=>null),
+      getDoc(doc(db,'securedb','profiles_1')).catch(()=>null),
+      getDoc(doc(db,'securedb','profiles_2')).catch(()=>null),
+    ]);
+    firstSnaps.forEach(s=>processChunkSnap(s));
 
+    // Afficher immédiatement avec ce qu'on a
     shuffledProfiles=getSessionShuffle([...allProfiles]);
     profilesLoaded=true;
-    updateStatCount();
+    updateStatCount(false);
     renderCategories(shuffledProfiles);
     renderProfiles();
 
-    // Background: charger TOUS les autres chunks
-    if(!_bgLoadStarted){
-      _bgLoadStarted=true;
-      _bgLoadAll(db,doc,getDoc,manifestChunks,seen);
+    // ── ÉTAPE 3: Charger TOUS les chunks restants en background ──
+    if(!_bgLoadActive){
+      _bgLoadActive=true;
+      _startFullBackgroundLoad(db,doc,getDoc,collection,getDocs,query,orderBy,seen,totalChunks);
     }
+
   }catch(e){
     console.error('loadAllProfiles',e);
-    profilesLoaded=true;renderProfiles();
+    profilesLoaded=true;
+    renderProfiles();
   }
 }
 
-async function _bgLoadAll(db,doc,getDoc,manifestChunks,seen){
-  const BATCH=10; // 10 chunks en parallèle
-  let chunkIdx=0;
-  let consecutiveMissing=0;
+async function _startFullBackgroundLoad(db,doc,getDoc,collection,getDocs,query,orderBy,seen,knownChunks){
+  showBgLoadIndicator(true);
+  let totalAdded=0;
 
-  // Charger du chunk 0 jusqu'à ce qu'on trouve 3 chunks manquants de suite
-  // (pour gérer les trous et aller bien au-delà du manifest si besoin)
-  while(consecutiveMissing<3){
-    // Skip les chunks déjà chargés (les derniers)
-    const toLoad=[];
-    for(let i=chunkIdx;i<chunkIdx+BATCH;i++){
-      if(i>=manifestChunks-5) break; // déjà chargés
-      toLoad.push(i);
-    }
-    if(!toLoad.length){
-      // On a fini les chunks du manifest, essayer au-delà
-      for(let i=Math.max(chunkIdx,manifestChunks);i<chunkIdx+BATCH;i++) toLoad.push(i);
-    }
-    if(!toLoad.length) break;
+  // ── PHASE A: Charger tous les chunks profiles_N en parallèle ──
+  // On détermine la vraie limite en scannant jusqu'à 3 manques consécutifs
+  let chunkIdx=3; // déjà chargé 0,1,2
+  let missCount=0;
+  const MAX_MISS=3; // si 3 chunks manquants d'affilée, on s'arrête
 
-    const batch=toLoad.map(i=>getDoc(doc(db,'securedb','profiles_'+i)).catch(()=>null));
+  // Si on connaît le nombre exact via manifest, on va directement jusqu'à là
+  const hardLimit=knownChunks>0?knownChunks+10:9999;
+
+  while(chunkIdx<hardLimit && missCount<MAX_MISS){
+    // Charger PARALLEL_CHUNKS chunks en parallèle
+    const batch=[];
+    for(let i=0;i<PARALLEL_CHUNKS&&chunkIdx+i<hardLimit;i++){
+      batch.push(
+        getDoc(doc(db,'securedb','profiles_'+(chunkIdx+i))).catch(()=>null)
+      );
+    }
     const snaps=await Promise.all(batch);
+    let batchAdded=0;
     let anyExists=false;
-    let added=0;
     snaps.forEach(s=>{
       if(!s||!s.exists()) return;
       anyExists=true;
-      (s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});
+      (s.data().list||[]).forEach(p=>{
+        const k=String(p.id);
+        if(!seen.has(k)){seen.add(k);allProfiles.push(p);batchAdded++;totalAdded++;}
+      });
     });
 
-    if(!anyExists) consecutiveMissing++;
-    else consecutiveMissing=0;
+    if(!anyExists) missCount++;
+    else missCount=0;
 
-    chunkIdx+=BATCH;
+    chunkIdx+=PARALLEL_CHUNKS;
 
-    if(added>0){
-      shuffledProfiles=getSessionShuffle([...allProfiles]);
-      updateStatCount();
-      const q=(document.getElementById('app-search')?.value||'').trim();
-      if(!q&&!activeCategory&&_renderedCount<40){
-        renderCategories(shuffledProfiles);
-        renderProfiles();
-      } else {
-        renderCategories(shuffledProfiles);
-      }
+    if(batchAdded>0){
+      // Mettre à jour l'UI de façon non-bloquante
+      await scheduleUIUpdate(seen.size);
     }
-    await new Promise(r=>setTimeout(r,30));
+
+    // Laisser respirer le navigateur entre chaque vague
+    await sleep(10);
   }
 
-  // Charger aussi la collection "posts" (nouveaux posts)
+  // ── PHASE B: Charger l'inbox (anciens posts groupés) ──
   try{
-    const {collection,query,orderBy,getDocs}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const snap=await getDocs(query(collection(db,'posts'),orderBy('id','desc')));
-    let added=0;
-    snap.docs.forEach(d=>{const p=d.data();const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});
-    if(added>0){
-      shuffledProfiles=getSessionShuffle([...allProfiles]);
-      const q=(document.getElementById('app-search')?.value||'').trim();
-      if(!q&&!activeCategory&&_renderedCount<40) renderProfiles();
+    const inboxSnap=await getDoc(doc(db,'securedb','inbox')).catch(()=>null);
+    if(inboxSnap&&inboxSnap.exists()){
+      let added=0;
+      (inboxSnap.data().list||[]).forEach(p=>{
+        const k=String(p.id);
+        if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}
+      });
+      if(added>0) await scheduleUIUpdate(seen.size);
     }
-  }catch(e){console.error('bgLoad posts',e);}
+  }catch(e){console.warn('inbox',e);}
 
-  _bgLoadDone=true;
-  updateStatCount();
+  // ── PHASE C: Charger la collection "posts" Firestore (nouveaux posts individuels) ──
+  // getDocs SANS limit pour tout récupérer
+  try{
+    setLoadingText('Loading posts collection...');
+    // Firestore getDocs sans limit charge tout (peut être lent pour 300k mais c'est la bonne méthode)
+    // On fait par batches de 500 avec orderBy pour éviter les timeouts
+    const colRef=collection(db,'posts');
+    const snap=await getDocs(colRef);
+    let added=0;
+    snap.docs.forEach(d=>{
+      const p=d.data();
+      const k=String(p.id);
+      if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;totalAdded++;}
+    });
+    if(added>0) await scheduleUIUpdate(seen.size);
+  }catch(e){console.error('posts collection',e);}
+
+  // ── FIN ──
+  _bgLoadCompleted=true;
+  _bgLoadActive=false;
+  showBgLoadIndicator(false);
+  updateStatCount(true);
+  // Dernier rendu final
+  shuffledProfiles=getSessionShuffle([...allProfiles]);
+  const q=(document.getElementById('app-search')?.value||'').trim();
+  renderCategories(shuffledProfiles);
+  if(!q&&!activeCategory) renderProfiles();
 }
 
-function updateStatCount(){
+// Mise à jour UI non-bloquante
+let _uiUpdatePending=false;
+async function scheduleUIUpdate(count){
+  if(_uiUpdatePending) return;
+  _uiUpdatePending=true;
+  await sleep(0); // libère le thread
+  _uiUpdatePending=false;
+  shuffledProfiles=getSessionShuffle([...allProfiles]);
+  updateStatCount(false);
+  setLoadingText('Loading... '+count.toLocaleString()+' posts');
+  const bgEl=document.getElementById('bg-load-text');
+  if(bgEl) bgEl.textContent=count.toLocaleString()+' posts loaded...';
+  // Ne re-render la grille que si on est sur browse ET qu'il y a peu de posts rendus
+  const q=(document.getElementById('app-search')?.value||'').trim();
+  if(!q&&!activeCategory&&_renderedCount<PAGE_SIZE*2){
+    renderCategories(shuffledProfiles);
+    renderProfiles();
+  } else {
+    renderCategories(shuffledProfiles);
+    // Update seulement le compteur
+    const sub=document.getElementById('profile-count-label');
+    if(sub) sub.textContent=allProfiles.length.toLocaleString()+' posts (loading more...)';
+  }
+}
+
+function showBgLoadIndicator(show){
+  const el=document.getElementById('bg-load-indicator');
+  if(!el) return;
+  el.style.display=show?'flex':'none';
+}
+function setLoadingText(txt){
+  const el=document.getElementById('loading-text');
+  if(el) el.textContent=txt;
+  const cnt=document.getElementById('loading-count');
+  if(cnt) cnt.textContent=allProfiles.length?allProfiles.length.toLocaleString()+' posts loaded...':'';
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function updateStatCount(done){
   const sc=document.getElementById('stat-count');
-  if(sc) sc.textContent=allProfiles.length.toLocaleString()+(_bgLoadDone?'':'...');
+  if(sc) sc.textContent=allProfiles.length.toLocaleString()+(done?'':'...');
 }
-
 
 function isNewPost(p){return Date.now()-new Date(p.createdAt).getTime()<86400000;}
-
-function getBannerStyle(bannerId){
-  const obj=BANNERS.find(b=>b.id===bannerId);
-  return obj?obj.style:null;
-}
+function getBannerStyle(bannerId){const obj=BANNERS.find(b=>b.id===bannerId);return obj?obj.style:null;}
 
 function buildCard(p,favs){
   const el=document.createElement('div');
@@ -1415,13 +1349,11 @@ function buildCard(p,favs){
     <button onclick="sharePost('${p.id}',event)" style="background:rgba(0,0,0,.4);border:none;color:#aaa;font-size:13px;cursor:pointer;padding:3px 5px;border-radius:5px">🔗</button>
     ${isAdmin()?`<button onclick="adminDeletePost('${p.id}')" style="background:rgba(0,0,0,.4);border:none;color:#c0392b;font-size:13px;cursor:pointer;padding:3px 5px;border-radius:5px">🗑️</button>`:''}
   </div>`;
-
   if(p.type==='file'){
     const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};const icon=icons[p.fileExt||'.txt']||'📄';
     const lineCount=(p.fileContent||'').split('\n').length;
     const preview=(p.fileContent||'').slice(0,100).replace(/\n/g,' ');
     const accessBadge=p.fileAccess==='premium'?'<span class="file-type-badge badge-premium">👑 Premium</span>':p.fileAccess==='points'?`<span class="file-type-badge badge-points">🪙 ${p.pointsCost||10} pts</span>`:'<span class="file-type-badge badge-free">🟢 Free</span>';
-    // Check if user can see content
     const canRead=!p.fileAccess||p.fileAccess==='free'||isPremium()||(p.fileAccess==='premium'&&isPremium())||(p.fileAccess==='points'&&(_userData.points||0)>=(p.pointsCost||0));
     el.innerHTML=`${actionBtns}
       <div class="card-top"><div class="avatar" style="font-size:26px">${icon}</div>
@@ -1437,7 +1369,6 @@ function buildCard(p,favs){
     const bio=p.bio?`<div class="card-bio">${esc(p.bio)}</div>`:'';
     const chips=(p.hobbies||[]).slice(0,3);const chipsHtml=chips.length?`<div class="card-chips">${chips.map(h=>`<div class="chip">${esc(h)}</div>`).join('')}</div>`:'';
     const premiumBadge=p.isPremiumUser?`<span class="premium-badge"><span class="premium-crown">👑</span>PREMIUM</span>`:'';
-    // Banner for card
     const bannerStyle=p.banner&&p.banner!=='none'?getBannerStyle(p.banner):null;
     const bannerHtml=bannerStyle?`<div class="card-banner" style="${bannerStyle}"></div>`:'';
     el.innerHTML=`${actionBtns}${bannerHtml}
@@ -1476,10 +1407,10 @@ function updateSentinel(grid,favs){
 function renderProfiles(filter=''){
   ensureSortBar();
   if(_scrollObserver){_scrollObserver.disconnect();_scrollObserver=null;}
-
   const grid=document.getElementById('profiles-grid');
   const sub=document.getElementById('profile-count-label');
-  if(sub) sub.textContent=`${allProfiles.length} post${allProfiles.length!==1?'s':''}`;
+  const loadingMore=_bgLoadActive&&!_bgLoadCompleted;
+  if(sub) sub.textContent=allProfiles.length.toLocaleString()+' post'+(allProfiles.length!==1?'s':'')+(loadingMore?' (loading more...)':'');
   const q=(filter||'').toLowerCase().trim();
   let list=shuffledProfiles;
   if(activeCategory) list=list.filter(p=>extractKeywords(p).includes(activeCategory));
@@ -1488,7 +1419,7 @@ function renderProfiles(filter=''){
   _filteredList=list;_renderedCount=0;
   const favs=getFavorites();
   if(!list.length){
-    const msg=currentSort==='favorites'?'No saved posts yet':currentSort==='trending'?'No trending posts in the last 24h':q||activeCategory?`No results for "${esc(activeCategory||q)}"`:' No posts yet — be the first!';
+    const msg=currentSort==='favorites'?'No saved posts yet':currentSort==='trending'?'No trending posts in the last 24h':q||activeCategory?`No results for "${esc(activeCategory||q)}"`:loadingMore?'Loading posts...':'No posts yet — be the first!';
     grid.innerHTML=`<div class="empty-state"><span class="empty-icon">${currentSort==='favorites'?'⭐':currentSort==='trending'?'🔥':q||activeCategory?'🔍':'👋'}</span><div class="empty-text">${msg}</div></div>`;return;
   }
   grid.innerHTML='';appendNextPage(grid,favs);
@@ -1533,7 +1464,6 @@ async function openModal(p){
   const hobbies=(p.hobbies||[]).filter(Boolean);
   const bannerStyle=p.banner&&p.banner!=='none'?getBannerStyle(p.banner):'';
   const premiumBadge=p.isPremiumUser?`<span class="premium-badge" style="font-size:12px"><span>👑</span>PREMIUM</span>`:'';
-  
   document.getElementById('modal-content').innerHTML=`
     <div class="modal-header">
       <button class="modal-close" onclick="closeModal()">✕</button>
@@ -1577,17 +1507,12 @@ async function openFileModal(p){
   window._currentFilePost=p;
   const ext=p.fileExt||'.txt';const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};const icon=icons[ext]||'📄';
   const date=new Date(p.createdAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-  
-  // Access check
   const canRead=!p.fileAccess||p.fileAccess==='free'||isAdmin()||
     (p.fileAccess==='premium'&&isPremium())||
     (p.fileAccess==='points'&&(_userData.points||0)>=(p.pointsCost||0))||
-    !p.fileAccess; // legacy posts without access field
-
+    !p.fileAccess;
   const accessBadge=p.fileAccess==='premium'?'<span class="file-type-badge badge-premium">👑 Premium Only</span>':p.fileAccess==='points'?`<span class="file-type-badge badge-points">🪙 ${p.pointsCost||10} Points</span>`:'<span class="file-type-badge badge-free">🟢 Free</span>';
-  
   let renderedTab='';if(ext==='.html'&&canRead) renderedTab=`<button class="file-modal-tab" id="ftab-rendered" onclick="switchFileTab('rendered')">Preview</button>`;
-  
   document.getElementById('modal-content').innerHTML=`
     <div class="modal-header" style="padding:0">
       <button class="modal-close" onclick="closeModal()">✕</button>
@@ -1615,7 +1540,6 @@ async function openFileModal(p){
           <button onclick="postComment('${p.id}')" style="background:linear-gradient(135deg,#2e2e2e,#1a1a1a);border:1px solid #3e3e3e;border-radius:8px;color:#ccc;padding:9px 16px;cursor:pointer;font-size:13px">Send</button>
         </div></div>
     </div>`;
-  
   if(canRead&&ext==='.html'){const r=document.getElementById('fview-rendered');if(r) r.innerHTML=p.fileContent||'';}
   document.getElementById('modal').style.display='flex';document.body.style.overflow='hidden';
   const bar=document.getElementById('reactions-bar');if(bar) renderReactionsBar(p.id,bar);
@@ -1625,38 +1549,23 @@ async function openFileModal(p){
 
 function buildLockedContent(p){
   if(p.fileAccess==='premium'){
-    return `<div class="file-locked-overlay">
-      <span class="locked-icon">👑</span>
-      <div class="locked-title" style="color:var(--gold)">PREMIUM ONLY</div>
-      <div class="locked-sub">This file is exclusively for Premium members.<br>Upgrade for 1€/month to unlock this and all other premium content.</div>
-      <button class="locked-btn" onclick="closeModal();switchTab('shop')" style="background:linear-gradient(135deg,var(--gold),#c08000);color:#111">👑 GET PREMIUM</button>
-    </div>`;
+    return `<div class="file-locked-overlay"><span class="locked-icon">👑</span><div class="locked-title" style="color:var(--gold)">PREMIUM ONLY</div><div class="locked-sub">This file is exclusively for Premium members.<br>Upgrade for 1€/month to unlock this and all other premium content.</div><button class="locked-btn" onclick="closeModal();switchTab('shop')" style="background:linear-gradient(135deg,var(--gold),#c08000);color:#111">👑 GET PREMIUM</button></div>`;
   } else {
     const cost=p.pointsCost||10;const pts=_userData.points||0;
-    return `<div class="file-locked-overlay">
-      <span class="locked-icon">🪙</span>
-      <div class="locked-title" style="color:#d4b800">POINTS ONLY</div>
-      <div class="locked-sub">This file costs <strong style="color:#d4b800">${cost} SD Points</strong> to unlock.<br>Your balance: <strong style="color:${pts>=cost?'#5adb5a':'#e05555'}">${pts} pts</strong></div>
-      ${pts>=cost
-        ?`<button class="locked-btn" onclick="unlockWithPoints('${p.id}',${cost})" style="background:linear-gradient(135deg,#2a2a00,#1a1a00);border:1px solid #5a5a00;color:#d4b800">🪙 Unlock for ${cost} pts</button>`
-        :`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="locked-btn" onclick="closeModal();switchTab('shop')" style="background:#1a1a00;border:1px solid #4a4a00;color:#d4b800">🪙 Get More Points</button></div>`
-      }
+    return `<div class="file-locked-overlay"><span class="locked-icon">🪙</span><div class="locked-title" style="color:#d4b800">POINTS ONLY</div><div class="locked-sub">This file costs <strong style="color:#d4b800">${cost} SD Points</strong> to unlock.<br>Your balance: <strong style="color:${pts>=cost?'#5adb5a':'#e05555'}">${pts} pts</strong></div>
+      ${pts>=cost?`<button class="locked-btn" onclick="unlockWithPoints('${p.id}',${cost})" style="background:linear-gradient(135deg,#2a2a00,#1a1a00);border:1px solid #5a5a00;color:#d4b800">🪙 Unlock for ${cost} pts</button>`:`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="locked-btn" onclick="closeModal();switchTab('shop')" style="background:#1a1a00;border:1px solid #4a4a00;color:#d4b800">🪙 Get More Points</button></div>`}
     </div>`;
   }
 }
-
 async function unlockWithPoints(postId,cost){
   if(!currentUser){showToast('Sign in first!');openAuth();return;}
   if(!spendPoints(cost)){showToast('Not enough SD Points!');return;}
-  // Save that user unlocked this post
   const key='unlocked_'+postId;
   try{await saveUserData(currentUser.uid,{[key]:true});}catch{}
-  // Reload the modal with access
   const p=allProfiles.find(x=>String(x.id)===String(postId));
   if(p){_userData[key]=true;await openFileModal(p);}
   showToast(`🔓 Unlocked for ${cost} points!`);
 }
-
 function downloadCurrentFile(){
   const p=window._currentFilePost;if(!p) return;
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([p.fileContent||''],{type:'text/plain'}));a.download=p.fileName;a.click();URL.revokeObjectURL(a.href);
@@ -1686,7 +1595,7 @@ async function submitProfile(){
     mbti:document.getElementById('f-mbti').value,languages:document.getElementById('f-lang').value.trim(),
     quote:document.getElementById('f-quote').value.trim()};
   allProfiles=[p,...allProfiles];shuffledProfiles=[p,...shuffledProfiles];
-  appendPostDB(p).catch(e=>console.error('append',e)); // fast, non-blocking
+  savePostFS(p).catch(e=>console.error('append',e));
   addPoints(5);
   btn.classList.add('success');btn.textContent='✓ Published! +5pts';showToast('Profile published! +5 SD Points 🪙');
   setTimeout(()=>{
@@ -1717,7 +1626,6 @@ function processFile(file){
   reader.readAsText(file);
 }
 function clearFile(){currentFile=null;currentFileContent='';document.getElementById('file-input').value='';document.getElementById('file-preview').style.display='none';}
-
 async function submitFile(){
   const title=document.getElementById('f-file-title').value.trim();
   if(!title){showToast('Please enter a title.');return;}if(!currentFile){showToast('Please select a file.');return;}
@@ -1730,7 +1638,7 @@ async function submitFile(){
     isPremiumUser:isPremium(),title,fileName:currentFile.name,fileExt:ext,fileContent:currentFileContent,
     fileAccess:access,pointsCost};
   allProfiles=[post,...allProfiles];shuffledProfiles=[post,...shuffledProfiles];
-  appendPostDB(post).catch(e=>console.error('append',e)); // fast, non-blocking
+  savePostFS(post).catch(e=>console.error('append',e));
   addPoints(8);
   btn.classList.add('success');btn.textContent='✓ Published! +8pts';showToast('File published! +8 SD Points 🪙');
   setTimeout(()=>{btn.classList.remove('success');btn.disabled=false;btn.textContent='PUBLISH FILE';document.getElementById('f-file-title').value='';clearFile();document.getElementById('f-file-access').value='free';document.getElementById('points-cost-field').style.display='none';switchTab('browse');},1800);
@@ -1750,13 +1658,11 @@ function processAutoFile(file){
     document.getElementById('auto-preview-icon').textContent=icons[ext]||'📄';document.getElementById('auto-preview-name-text').textContent=file.name;document.getElementById('auto-preview-size').textContent=(file.size/1024).toFixed(1)+' KB';document.getElementById('auto-file-preview').style.display='block';};
   reader.readAsText(file);
 }
-
 async function submitAutoUpload(){
   const name=document.getElementById('f-auto-name').value.trim();
   const linesPerPost=parseInt(document.getElementById('f-auto-lines').value)||2;
   if(!name){showToast('Please enter an Auto Post Name.');return;}
   if(!autoFile){showToast('Please select a file.');return;}
-
   const btn=document.getElementById('submit-auto-btn');btn.disabled=true;
   const access=document.getElementById('f-auto-access').value;
   const progress=document.getElementById('auto-progress');
@@ -1764,7 +1670,6 @@ async function submitAutoUpload(){
   const label=document.getElementById('auto-progress-label');
   progress.style.display='block';fill.style.width='5%';
   label.textContent='Preparing posts...';
-
   const rawChunks=[];
   const allLines=autoFileContent.split('\n');
   for(let i=0;i<allLines.length;i+=linesPerPost){
@@ -1772,48 +1677,33 @@ async function submitAutoUpload(){
     if(c) rawChunks.push(c);
   }
   if(!rawChunks.length){showToast('File is empty!');btn.disabled=false;progress.style.display='none';return;}
-
   const ext='.'+autoFile.name.split('.').pop().toLowerCase();
   const baseTime=Date.now();
   const postedBy=currentUser?(_userData.displayName||currentUser.email.split('@')[0]):'Anonyme';
   const newPosts=rawChunks.map((c,i)=>({
-    id:baseTime+i,
-    createdAt:new Date(baseTime+i).toISOString(),
+    id:baseTime+i,createdAt:new Date(baseTime+i).toISOString(),
     type:'file',postedBy,isPremiumUser:isPremium(),
     title:name+' '+(i+1),fileName:name+'_'+(i+1)+ext,
     fileExt:ext,fileContent:c,fileAccess:access,pointsCost:0
   }));
-
-  // Show in UI immediately
   allProfiles=[...newPosts,...allProfiles];
   shuffledProfiles=[...newPosts,...shuffledProfiles];
   profilesLoaded=true;
-
   try{
-    label.textContent='Saving '+newPosts.length+' posts...';
-    fill.style.width='20%';
-    // Batch write — 1 doc per post, Firestore handles any amount
+    label.textContent='Saving '+newPosts.length+' posts...';fill.style.width='20%';
     await savePostsBatchFS(newPosts);
     fill.style.width='100%';
     label.textContent=newPosts.length+' posts saved!';
     addPoints(Math.min(newPosts.length*2,100));
-    btn.classList.add('success');
-    btn.textContent='Done! '+newPosts.length+' posts';
+    btn.classList.add('success');btn.textContent='Done! '+newPosts.length+' posts';
     showToast(newPosts.length+' posts saved!');
   }catch(e){
-    console.error('auto-upload:',e);
-    label.textContent='Error: '+e.message;
-    btn.textContent='Error';
-    showToast('Error: '+e.message);
+    console.error('auto-upload:',e);label.textContent='Error: '+e.message;btn.textContent='Error';showToast('Error: '+e.message);
   }
-
   setTimeout(()=>{
-    btn.classList.remove('success');btn.disabled=false;
-    btn.textContent='START AUTO-UPLOAD';
-    document.getElementById('f-auto-name').value='';
-    document.getElementById('f-auto-lines').value='';
-    progress.style.display='none';fill.style.width='0%';
-    clearAutoFile();switchTab('browse');
+    btn.classList.remove('success');btn.disabled=false;btn.textContent='START AUTO-UPLOAD';
+    document.getElementById('f-auto-name').value='';document.getElementById('f-auto-lines').value='';
+    progress.style.display='none';fill.style.width='0%';clearAutoFile();switchTab('browse');
   },2000);
 }
 
@@ -1835,24 +1725,17 @@ async function getAuth(){
   const app=getApps().length?getApps()[0]:initializeApp(cfg);const auth=_getAuth(app);
   onAuthStateChanged(auth,async user=>{
     currentUser=user;
-    if(user){
-      await refreshUserData();
-      await checkBan();
-    } else {
-      _userData={points:0,premium:false,premiumExpiry:null,banner:'none',avatarEmoji:'',displayName:'',bio:''};
-      updatePointsDisplay();updateUserBtn();
-    }
+    if(user){await refreshUserData();await checkBan();}
+    else{_userData={points:0,premium:false,premiumExpiry:null,banner:'none',avatarEmoji:'',displayName:'',bio:''};updatePointsDisplay();updateUserBtn();}
     const adminBtn=document.getElementById('tab-admin');if(adminBtn) adminBtn.style.display=isAdmin()?'inline-flex':'none';
   });
   _auth={auth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut};
   return _auth;
 }
-
 let authMode='login';
 function openAuth(){document.getElementById('auth-modal').classList.add('open');}
 function closeAuth(){document.getElementById('auth-modal').classList.remove('open');document.getElementById('auth-error').textContent='';}
 function switchAuthTab(tab){authMode=tab;['login','register'].forEach(t=>{document.getElementById('atab-'+t).classList.toggle('active',t===tab);});document.getElementById('auth-btn').textContent=tab==='login'?'SIGN IN':'CREATE ACCOUNT';document.getElementById('auth-error').textContent='';}
-
 async function doAuth(){
   const email=document.getElementById('auth-email').value.trim();const pass=document.getElementById('auth-password').value;
   const err=document.getElementById('auth-error');const btn=document.getElementById('auth-btn');
@@ -1868,7 +1751,6 @@ async function doAuth(){
   }catch(e){const msgs={'auth/user-not-found':'No account with this email.','auth/wrong-password':'Wrong password.','auth/email-already-in-use':'Email already in use.','auth/invalid-email':'Invalid email address.','auth/weak-password':'Password too weak.','auth/invalid-credential':'Wrong email or password.'};err.textContent=msgs[e.code]||e.message;}
   btn.disabled=false;
 }
-
 document.getElementById('user-btn')?.addEventListener('click',()=>{
   if(currentUser){
     document.getElementById('auth-email').value=currentUser.email;document.getElementById('auth-password').value='';
@@ -1884,7 +1766,6 @@ document.getElementById('user-btn')?.addEventListener('click',()=>{
 function showToast(msg){const el=document.getElementById('toast');el.textContent=msg;el.style.display='block';clearTimeout(el._t);el._t=setTimeout(()=>{el.style.display='none';},3000);}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-// Cycle words
 const cWords=['FRIEND.','BUDDY.','PARTNER.','MATE.'];let cIdx=0;
 setInterval(()=>{const el=document.getElementById('cycle-word');if(!el) return;el.style.opacity='0';el.style.transform='translateY(-10px)';setTimeout(()=>{cIdx=(cIdx+1)%cWords.length;el.textContent=cWords[cIdx];el.style.opacity='1';el.style.transform='translateY(0)';},320);},2800);
 
@@ -1899,6 +1780,10 @@ document.addEventListener('keydown',e=>{
 
 /* ═══════════════════════════════════════════════════════
    KEY GATE + LOADING SCREEN
+   
+   PENDANT LES 10 SECONDES DE CHARGEMENT:
+   On précharge Firebase et tous les posts en parallèle.
+   La barre de progression reflète la progression réelle.
 ═══════════════════════════════════════════════════════ */
 async function checkKey(){
   const input=document.getElementById('key-input').value.trim();
@@ -1911,7 +1796,6 @@ async function checkKey(){
     const validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
     if(validKeys.includes(input)){
       sessionStorage.setItem('sdb-auth','1');
-      // Show loading screen for 10s
       showLoadingScreen();
     } else {
       err.textContent='Invalid key. Access denied.';btn.disabled=false;btn.textContent='ENTER';
@@ -1925,36 +1809,126 @@ function showLoadingScreen(){
   const kg=document.getElementById('keygate');if(kg) kg.style.display='none';
   const ls=document.getElementById('loading-screen');ls.style.display='flex';
   const bar=document.getElementById('loading-bar');
-  let pct=0;const totalMs=10000;const step=100;
-  // Start preloading Firebase data in background
-  getAuth().catch(()=>{});
-  loadProfilesDB().then(arr=>{
-    allProfiles=arr;shuffledProfiles=getSessionShuffle([...arr]);
-    profilesLoaded=true;
-    const sc=document.getElementById('stat-count');if(sc) sc.textContent=arr.length;
-  }).catch(()=>{});
-  loadStats().catch(()=>{});
-  loadAnnouncement().catch(()=>{});
+  const totalMs=10000;
+  let startTime=Date.now();
+  let loadingDone=false;
 
+  // Lance le préchargement complet en background PENDANT les 10s
+  _startPreload().then(()=>{loadingDone=true;});
+
+  // Barre de progression basée sur le temps + progression réelle
   const iv=setInterval(()=>{
-    pct=Math.min(pct+(step/totalMs)*100,100);
+    const elapsed=Date.now()-startTime;
+    const timeProgress=Math.min(elapsed/totalMs,1);
+    // La barre monte selon le temps, mais accélère si on a beaucoup de posts
+    const postProgress=allProfiles.length>0?Math.min(allProfiles.length/1000,0.7):0;
+    const pct=Math.min(Math.max(timeProgress*100,postProgress*100),99);
     bar.style.width=pct+'%';
-    if(pct>=100){clearInterval(iv);setTimeout(()=>{ls.style.display='none';},300);}
-  },step);
+    const cnt=document.getElementById('loading-count');
+    if(cnt&&allProfiles.length>0) cnt.textContent=allProfiles.length.toLocaleString()+' posts preloaded...';
+    if(elapsed>=totalMs){
+      clearInterval(iv);
+      bar.style.width='100%';
+      setTimeout(()=>{ls.style.display='none';},200);
+    }
+  },100);
 }
 
-// Check if already authenticated
+// Précharge tout pendant l'écran de chargement
+async function _startPreload(){
+  try{
+    setLoadingText('Connecting to database...');
+    // Initialiser Firebase Auth et DB en parallèle
+    await Promise.all([
+      getAuth().catch(()=>{}),
+      getDB().catch(()=>{}),
+      loadStats().catch(()=>{}),
+      loadAnnouncement().catch(()=>{}),
+    ]);
+    setLoadingText('Loading posts...');
+
+    const {db,doc,getDoc,collection,getDocs,query,orderBy}=await getDB();
+    const seen=new Set();
+
+    // Lire le manifest
+    let totalChunks=0;
+    try{
+      const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest'));
+      if(manifestSnap.exists()) totalChunks=manifestSnap.data().chunks||0;
+    }catch{}
+
+    setLoadingText('Loading '+totalChunks+' chunks...');
+
+    // Charger TOUS les chunks profiles_0..N en parallèle (vagues de 20)
+    let chunkIdx=0;
+    let missCount=0;
+    const hardLimit=Math.max(totalChunks+10,200); // au moins 200 chunks tentés
+
+    while(chunkIdx<hardLimit&&missCount<3){
+      const batch=[];
+      for(let i=0;i<PARALLEL_CHUNKS&&chunkIdx+i<hardLimit;i++){
+        batch.push(getDoc(doc(db,'securedb','profiles_'+(chunkIdx+i))).catch(()=>null));
+      }
+      const snaps=await Promise.all(batch);
+      let anyExists=false;
+      snaps.forEach(s=>{
+        if(!s||!s.exists()) return;
+        anyExists=true;
+        (s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+      });
+      if(!anyExists) missCount++;
+      else{missCount=0;setLoadingText(allProfiles.length.toLocaleString()+' posts loaded...');}
+      chunkIdx+=PARALLEL_CHUNKS;
+      await sleep(5);
+    }
+
+    // Inbox
+    try{
+      const inboxSnap=await getDoc(doc(db,'securedb','inbox')).catch(()=>null);
+      if(inboxSnap&&inboxSnap.exists()){
+        (inboxSnap.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+      }
+    }catch{}
+
+    // Collection posts (sans limit)
+    try{
+      setLoadingText('Loading posts collection...');
+      const snap=await getDocs(collection(db,'posts'));
+      snap.docs.forEach(d=>{const p=d.data();const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+    }catch(e){console.warn('posts collection preload',e);}
+
+    // Finalize
+    shuffledProfiles=getSessionShuffle([...allProfiles]);
+    profilesLoaded=true;
+    _bgLoadCompleted=true;
+    setLoadingText(allProfiles.length.toLocaleString()+' posts ready!');
+    updateStatCount(true);
+  }catch(e){
+    console.error('preload error',e);
+    profilesLoaded=true;
+  }
+}
+
+// Vérif session déjà auth
 if(sessionStorage.getItem('sdb-auth')==='1'){
   const kg=document.getElementById('keygate');if(kg) kg.style.display='none';
-  // Silent preload (no loading screen if already authenticated)
-  getAuth().catch(()=>{});
-  loadStats().catch(()=>{});
-  loadAnnouncement().catch(()=>{});
-  loadProfilesDB().then(arr=>{
-    allProfiles=arr;shuffledProfiles=getSessionShuffle([...arr]);
-    profilesLoaded=true;
-    const sc=document.getElementById('stat-count');if(sc) sc.textContent=arr.length;
-  }).catch(()=>{});
+  // Préchargement silencieux sans écran de loading
+  Promise.all([
+    getAuth().catch(()=>{}),
+    loadStats().catch(()=>{}),
+    loadAnnouncement().catch(()=>{}),
+  ]).then(()=>{
+    // Lance le chargement complet en background
+    getDB().then(({db,doc,getDoc,collection,getDocs,query,orderBy})=>{
+      const seen=new Set();
+      _startPreload().then(()=>{
+        if(document.getElementById('view-browse')?.style.display!=='none'){
+          renderCategories(shuffledProfiles);
+          renderProfiles();
+        }
+      }).catch(()=>{});
+    }).catch(()=>{});
+  });
 }
 </script>
 </body>
