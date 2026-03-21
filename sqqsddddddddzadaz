@@ -1109,19 +1109,120 @@ function renderCategories(profiles){
 
 /* ═══════════════════════════════════════════════════════
    DB LAYER — ÉCRITURE
+   Essaie d'abord "posts" (1 doc/post), fallback sur
+   securedb/profiles_N (chunks) si les règles bloquent.
 ═══════════════════════════════════════════════════════ */
-async function savePostFS(post){
-  const {db,collection,doc,setDoc}=await getDB();
-  await setDoc(doc(collection(db,'posts'),String(post.id)),post);
-}
-async function savePostsBatchFS(posts){
-  const {db,collection,doc,writeBatch}=await getDB();
-  const col=collection(db,'posts');
-  for(let i=0;i<posts.length;i+=500){
-    const batch=writeBatch(db);
-    posts.slice(i,i+500).forEach(p=>batch.set(doc(col,String(p.id)),p));
-    await batch.commit();
+
+// Test une seule fois si l'écriture dans "posts" est autorisée
+let _canWritePosts=null;
+async function canWriteToPosts(){
+  if(_canWritePosts!==null) return _canWritePosts;
+  try{
+    const {db,collection,doc,setDoc,deleteDoc}=await getDB();
+    const testId='__wt_'+Date.now();
+    await setDoc(doc(collection(db,'posts'),testId),{_test:true});
+    // essaie de supprimer le doc de test (peut échouer si pas le droit, c'est ok)
+    deleteDoc(doc(collection(db,'posts'),testId)).catch(()=>{});
+    _canWritePosts=true;
+    console.log('[DB] posts collection: WRITABLE');
+  }catch(e){
+    console.warn('[DB] posts collection not writable:',e.code,'->fallback to legacy chunks');
+    _canWritePosts=false;
   }
+  return _canWritePosts;
+}
+
+// Fallback: ajoute dans les chunks securedb/profiles_N
+async function appendToLegacyChunks(newPosts, onProgress){
+  const {db,doc,getDoc,setDoc}=await getDB();
+  let chunkCount=0;
+  try{
+    const m=await getDoc(doc(db,'securedb','profiles_manifest'));
+    if(m.exists()) chunkCount=m.data().chunks||0;
+  }catch{}
+
+  // Lire le dernier chunk pour le compléter
+  let lastIdx=Math.max(0,chunkCount-1);
+  let lastList=[];
+  try{
+    const s=await getDoc(doc(db,'securedb','profiles_'+lastIdx));
+    if(s.exists()) lastList=s.data().list||[];
+  }catch{}
+
+  // Si le dernier chunk est déjà plein (>=50), on commence un nouveau chunk
+  if(lastList.length>=50){ lastIdx=chunkCount; lastList=[]; }
+
+  // Remplir les chunks de 50
+  const combined=[...lastList,...newPosts];
+  const chunkBufs=[];
+  for(let i=0;i<combined.length;i+=50) chunkBufs.push(combined.slice(i,i+50));
+
+  let done=0;
+  for(let i=0;i<chunkBufs.length;i++){
+    await setDoc(doc(db,'securedb','profiles_'+(lastIdx+i)),{list:chunkBufs[i]});
+    done+=chunkBufs[i].length;
+    if(onProgress) onProgress(done,newPosts.length);
+    if(i%5===4) await new Promise(r=>setTimeout(r,30)); // pause tous les 5 chunks
+  }
+
+  // Mettre à jour le manifest
+  const newChunkCount=lastIdx+chunkBufs.length;
+  await setDoc(doc(db,'securedb','profiles_manifest'),{
+    chunks:newChunkCount,
+    total:allProfiles.length,
+    updatedAt:new Date().toISOString()
+  },{merge:true});
+}
+
+async function savePostFS(post){
+  try{
+    const ok=await canWriteToPosts();
+    if(ok){
+      const {db,collection,doc,setDoc}=await getDB();
+      await setDoc(doc(collection(db,'posts'),String(post.id)),post);
+    } else {
+      await appendToLegacyChunks([post]);
+    }
+  }catch(e){
+    console.error('[savePostFS] error:',e);
+    // dernier recours: legacy
+    await appendToLegacyChunks([post]);
+  }
+}
+async function savePostsBatchFS(posts, onProgress){
+  // Ecrit dans des chunks profiles_X (meme systeme que le loader)
+  // BEAUCOUP plus fiable que la collection posts pour les gros volumes
+  const {db,doc,setDoc,getDoc}=await getDB();
+
+  // Trouver le prochain chunk libre via le manifest
+  let nextChunk=0;
+  let oldTotal=0;
+  try{
+    const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
+    if(ms.exists()){nextChunk=ms.data().chunks||0;oldTotal=ms.data().total||0;}
+  }catch{}
+
+  const POSTS_PER_CHUNK=50;
+  const total=posts.length;
+  let done=0;
+
+  // Ecrire chunk par chunk sequentiellement
+  for(let i=0;i<total;i+=POSTS_PER_CHUNK){
+    const slice=posts.slice(i,i+POSTS_PER_CHUNK);
+    await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice});
+    nextChunk++;
+    done+=slice.length;
+    if(onProgress) onProgress(done,total);
+    // Pause toutes les 20 chunks pour ne pas saturer Firestore
+    if(nextChunk%20===0) await sleep(100);
+  }
+
+  // Mettre a jour le manifest
+  await setDoc(doc(db,'securedb','profiles_manifest'),{
+    chunks:nextChunk,
+    total:oldTotal+total,
+    updatedAt:new Date().toISOString()
+  });
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1259,21 +1360,32 @@ async function _startFullBackgroundLoad(db,doc,getDoc,collection,getDocs,query,o
     }
   }catch(e){console.warn('inbox',e);}
 
-  // ── PHASE C: Charger la collection "posts" Firestore (nouveaux posts individuels) ──
-  // getDocs SANS limit pour tout récupérer
+  // ── PHASE C: Charger la collection "posts" avec PAGINATION (startAfter)
+  // getDocs sans pagination ne retourne que ~300 docs, il faut paginer
   try{
     setLoadingText('Loading posts collection...');
-    // Firestore getDocs sans limit charge tout (peut être lent pour 300k mais c'est la bonne méthode)
-    // On fait par batches de 500 avec orderBy pour éviter les timeouts
+    const {limit,startAfter,query:fsQuery,orderBy:fsOrderBy}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const colRef=collection(db,'posts');
-    const snap=await getDocs(colRef);
-    let added=0;
-    snap.docs.forEach(d=>{
-      const p=d.data();
-      const k=String(p.id);
-      if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;totalAdded++;}
-    });
-    if(added>0) await scheduleUIUpdate(seen.size);
+    const PAGE=500; // 500 docs par page
+    let lastDoc=null;
+    let pageAdded=1;
+    while(pageAdded>0){
+      let q=lastDoc
+        ? fsQuery(colRef,fsOrderBy('id'),startAfter(lastDoc),limit(PAGE))
+        : fsQuery(colRef,fsOrderBy('id'),limit(PAGE));
+      const snap=await getDocs(q);
+      pageAdded=0;
+      snap.docs.forEach(d=>{
+        const p=d.data();
+        const k=String(p.id);
+        if(!seen.has(k)){seen.add(k);allProfiles.push(p);pageAdded++;totalAdded++;}
+      });
+      if(snap.docs.length>0) lastDoc=snap.docs[snap.docs.length-1];
+      if(snap.docs.length<PAGE) break; // derniere page
+      if(pageAdded>0) await scheduleUIUpdate(seen.size);
+      await sleep(20);
+    }
+    if(pageAdded>0) await scheduleUIUpdate(seen.size);
   }catch(e){console.error('posts collection',e);}
 
   // ── FIN ──
@@ -1595,7 +1707,13 @@ async function submitProfile(){
     mbti:document.getElementById('f-mbti').value,languages:document.getElementById('f-lang').value.trim(),
     quote:document.getElementById('f-quote').value.trim()};
   allProfiles=[p,...allProfiles];shuffledProfiles=[p,...shuffledProfiles];
-  savePostFS(p).catch(e=>console.error('append',e));
+  // Sauvegarder en Firestore — attend le résultat et affiche l'erreur si ça échoue
+  try{
+    await savePostFS(p);
+  }catch(e){
+    console.error('[submitProfile] savePostFS failed:',e);
+    showToast('⚠️ Sauvegarde échouée: '+e.message);
+  }
   addPoints(5);
   btn.classList.add('success');btn.textContent='✓ Published! +5pts';showToast('Profile published! +5 SD Points 🪙');
   setTimeout(()=>{
@@ -1638,7 +1756,13 @@ async function submitFile(){
     isPremiumUser:isPremium(),title,fileName:currentFile.name,fileExt:ext,fileContent:currentFileContent,
     fileAccess:access,pointsCost};
   allProfiles=[post,...allProfiles];shuffledProfiles=[post,...shuffledProfiles];
-  savePostFS(post).catch(e=>console.error('append',e));
+  // Sauvegarder en Firestore — attend le résultat et affiche l'erreur si ça échoue
+  try{
+    await savePostFS(post);
+  }catch(e){
+    console.error('[submitFile] savePostFS failed:',e);
+    showToast('⚠️ Sauvegarde échouée: '+e.message);
+  }
   addPoints(8);
   btn.classList.add('success');btn.textContent='✓ Published! +8pts';showToast('File published! +8 SD Points 🪙');
   setTimeout(()=>{btn.classList.remove('success');btn.disabled=false;btn.textContent='PUBLISH FILE';document.getElementById('f-file-title').value='';clearFile();document.getElementById('f-file-access').value='free';document.getElementById('points-cost-field').style.display='none';switchTab('browse');},1800);
@@ -1668,8 +1792,9 @@ async function submitAutoUpload(){
   const progress=document.getElementById('auto-progress');
   const fill=document.getElementById('auto-progress-fill');
   const label=document.getElementById('auto-progress-label');
-  progress.style.display='block';fill.style.width='5%';
+  progress.style.display='block';fill.style.width='2%';
   label.textContent='Preparing posts...';
+
   const rawChunks=[];
   const allLines=autoFileContent.split('\n');
   for(let i=0;i<allLines.length;i+=linesPerPost){
@@ -1677,6 +1802,7 @@ async function submitAutoUpload(){
     if(c) rawChunks.push(c);
   }
   if(!rawChunks.length){showToast('File is empty!');btn.disabled=false;progress.style.display='none';return;}
+
   const ext='.'+autoFile.name.split('.').pop().toLowerCase();
   const baseTime=Date.now();
   const postedBy=currentUser?(_userData.displayName||currentUser.email.split('@')[0]):'Anonyme';
@@ -1686,25 +1812,49 @@ async function submitAutoUpload(){
     title:name+' '+(i+1),fileName:name+'_'+(i+1)+ext,
     fileExt:ext,fileContent:c,fileAccess:access,pointsCost:0
   }));
+
+  // Afficher immédiatement dans l'UI
   allProfiles=[...newPosts,...allProfiles];
   shuffledProfiles=[...newPosts,...shuffledProfiles];
   profilesLoaded=true;
+
+  label.textContent='0 / '+newPosts.length+' posts saved...';
+  fill.style.width='3%';
+
   try{
-    label.textContent='Saving '+newPosts.length+' posts...';fill.style.width='20%';
-    await savePostsBatchFS(newPosts);
+    let lastPct=3;
+    await savePostsBatchFS(newPosts,(done,total)=>{
+      const pct=3+Math.floor((done/total)*94);
+      if(pct>lastPct){
+        lastPct=pct;
+        fill.style.width=pct+'%';
+        label.textContent=done.toLocaleString()+' / '+total.toLocaleString()+' posts saved...';
+      }
+    });
+
     fill.style.width='100%';
-    label.textContent=newPosts.length+' posts saved!';
+    label.textContent='✓ '+newPosts.length.toLocaleString()+' posts saved!';
     addPoints(Math.min(newPosts.length*2,100));
-    btn.classList.add('success');btn.textContent='Done! '+newPosts.length+' posts';
-    showToast(newPosts.length+' posts saved!');
+    btn.classList.add('success');
+    btn.textContent='✓ Done! '+newPosts.length.toLocaleString()+' posts';
+    showToast(newPosts.length.toLocaleString()+' posts saved! 🎉');
   }catch(e){
-    console.error('auto-upload:',e);label.textContent='Error: '+e.message;btn.textContent='Error';showToast('Error: '+e.message);
+    console.error('auto-upload:',e);
+    label.textContent='❌ Error: '+e.message;
+    btn.textContent='Error — retry?';
+    btn.disabled=false;
+    showToast('Error: '+e.message);
+    return;
   }
+
   setTimeout(()=>{
-    btn.classList.remove('success');btn.disabled=false;btn.textContent='START AUTO-UPLOAD';
-    document.getElementById('f-auto-name').value='';document.getElementById('f-auto-lines').value='';
-    progress.style.display='none';fill.style.width='0%';clearAutoFile();switchTab('browse');
-  },2000);
+    btn.classList.remove('success');btn.disabled=false;
+    btn.textContent='START AUTO-UPLOAD';
+    document.getElementById('f-auto-name').value='';
+    document.getElementById('f-auto-lines').value='';
+    progress.style.display='none';fill.style.width='0%';
+    clearAutoFile();switchTab('browse');
+  },2500);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1890,11 +2040,25 @@ async function _startPreload(){
       }
     }catch{}
 
-    // Collection posts (sans limit)
+    // Collection posts avec PAGINATION (startAfter) — sinon on rate tout apres 300 docs
     try{
       setLoadingText('Loading posts collection...');
-      const snap=await getDocs(collection(db,'posts'));
-      snap.docs.forEach(d=>{const p=d.data();const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+      const {limit,startAfter,query:fsQuery,orderBy:fsOrderBy}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const colRef=collection(db,'posts');
+      const PAGE=500;
+      let lastDoc=null;
+      let hasMore=true;
+      while(hasMore){
+        let q=lastDoc
+          ? fsQuery(colRef,fsOrderBy('id'),startAfter(lastDoc),limit(PAGE))
+          : fsQuery(colRef,fsOrderBy('id'),limit(PAGE));
+        const snap=await getDocs(q);
+        snap.docs.forEach(d=>{const p=d.data();const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});
+        if(snap.docs.length>0) lastDoc=snap.docs[snap.docs.length-1];
+        hasMore=snap.docs.length===PAGE;
+        if(hasMore) setLoadingText(allProfiles.length.toLocaleString()+' posts loaded...');
+        await sleep(10);
+      }
     }catch(e){console.warn('posts collection preload',e);}
 
     // Finalize
