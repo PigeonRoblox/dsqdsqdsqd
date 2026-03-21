@@ -1135,43 +1135,36 @@ async function canWriteToPosts(){
 // Fallback: ajoute dans les chunks securedb/profiles_N
 async function appendToLegacyChunks(newPosts, onProgress){
   const {db,doc,getDoc,setDoc}=await getDB();
-  let chunkCount=0;
+
+  // Lire le manifest pour connaître le dernier chunk
+  let nextChunk=0;
+  let manifestTotal=0;
   try{
-    const m=await getDoc(doc(db,'securedb','profiles_manifest'));
-    if(m.exists()) chunkCount=m.data().chunks||0;
+    const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
+    if(ms.exists()){nextChunk=ms.data().chunks||0;manifestTotal=ms.data().total||0;}
   }catch{}
 
-  // Lire le dernier chunk pour le compléter
-  let lastIdx=Math.max(0,chunkCount-1);
-  let lastList=[];
-  try{
-    const s=await getDoc(doc(db,'securedb','profiles_'+lastIdx));
-    if(s.exists()) lastList=s.data().list||[];
-  }catch{}
-
-  // Si le dernier chunk est déjà plein (>=50), on commence un nouveau chunk
-  if(lastList.length>=50){ lastIdx=chunkCount; lastList=[]; }
-
-  // Remplir les chunks de 50
-  const combined=[...lastList,...newPosts];
-  const chunkBufs=[];
-  for(let i=0;i<combined.length;i+=50) chunkBufs.push(combined.slice(i,i+50));
-
+  const POSTS_PER_CHUNK=50;
+  const total=newPosts.length;
   let done=0;
-  for(let i=0;i<chunkBufs.length;i++){
-    await setDoc(doc(db,'securedb','profiles_'+(lastIdx+i)),{list:chunkBufs[i]});
-    done+=chunkBufs[i].length;
-    if(onProgress) onProgress(done,newPosts.length);
-    if(i%5===4) await new Promise(r=>setTimeout(r,30)); // pause tous les 5 chunks
+
+  // Écrire chunk par chunk séquentiellement
+  for(let i=0;i<total;i+=POSTS_PER_CHUNK){
+    const slice=newPosts.slice(i,i+POSTS_PER_CHUNK);
+    await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice});
+    nextChunk++;
+    done+=slice.length;
+    if(onProgress) onProgress(done,total);
+    // Pause toutes les 20 chunks pour ne pas saturer Firestore
+    if(nextChunk%20===0) await new Promise(r=>setTimeout(r,100));
   }
 
   // Mettre à jour le manifest
-  const newChunkCount=lastIdx+chunkBufs.length;
   await setDoc(doc(db,'securedb','profiles_manifest'),{
-    chunks:newChunkCount,
-    total:allProfiles.length,
+    chunks:nextChunk,
+    total:manifestTotal+total,
     updatedAt:new Date().toISOString()
-  },{merge:true});
+  });
 }
 
 async function savePostFS(post){
@@ -1190,39 +1183,63 @@ async function savePostFS(post){
   }
 }
 async function savePostsBatchFS(posts, onProgress){
-  // Ecrit dans des chunks profiles_X (meme systeme que le loader)
-  // BEAUCOUP plus fiable que la collection posts pour les gros volumes
   const {db,doc,setDoc,getDoc}=await getDB();
 
-  // Trouver le prochain chunk libre via le manifest
-  let nextChunk=0;
-  let oldTotal=0;
+  // Lire le manifest
+  let nextChunk=0, oldTotal=0;
   try{
     const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
     if(ms.exists()){nextChunk=ms.data().chunks||0;oldTotal=ms.data().total||0;}
   }catch{}
 
-  const POSTS_PER_CHUNK=50;
+  // Scanner pour trouver le premier chunk vraiment vide
+  for(let probe=nextChunk;probe<nextChunk+30;probe++){
+    try{
+      const s=await getDoc(doc(db,'securedb','profiles_'+probe));
+      if(!s.exists()){nextChunk=probe;break;}
+    }catch{nextChunk=probe;break;}
+  }
+
+  // 30 posts/chunk = ~300KB max, tres safe sous la limite 1MB
+  const POSTS_PER_CHUNK=30;
   const total=posts.length;
   let done=0;
+  const startChunk=nextChunk;
 
-  // Ecrire chunk par chunk sequentiellement
   for(let i=0;i<total;i+=POSTS_PER_CHUNK){
     const slice=posts.slice(i,i+POSTS_PER_CHUNK);
-    await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice});
+    let ok=false, tries=0;
+    while(!ok&&tries<5){
+      try{
+        await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice});
+        ok=true;
+      }catch(e){
+        if(e.message&&(e.message.includes('size')||e.message.includes('exceeds'))){
+          // Trop gros: couper en 2
+          const half=Math.ceil(slice.length/2);
+          await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice.slice(0,half)});
+          nextChunk++;
+          await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice.slice(half)});
+          ok=true;
+        } else {
+          tries++;
+          await sleep(600*tries);
+          nextChunk++;
+        }
+      }
+    }
     nextChunk++;
     done+=slice.length;
     if(onProgress) onProgress(done,total);
-    // Pause toutes les 20 chunks pour ne pas saturer Firestore
-    if(nextChunk%20===0) await sleep(100);
+    if((nextChunk-startChunk)%10===0) await sleep(120);
   }
 
-  // Mettre a jour le manifest
-  await setDoc(doc(db,'securedb','profiles_manifest'),{
-    chunks:nextChunk,
-    total:oldTotal+total,
-    updatedAt:new Date().toISOString()
-  });
+  try{
+    await setDoc(doc(db,'securedb','profiles_manifest'),{
+      chunks:nextChunk, total:oldTotal+total,
+      updatedAt:new Date().toISOString()
+    });
+  }catch(e){console.warn('manifest',e);}
 }
 
 /* ═══════════════════════════════════════════════════════
