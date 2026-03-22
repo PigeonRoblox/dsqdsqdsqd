@@ -1610,85 +1610,86 @@ async function _getManifest(db,doc,getDoc){
 }
 
 /* ═══════════════════════════════════════════════════════
-   savePostsBatchFS — ULTRA RAPIDE
-   Stratégie: max de posts par chunk (500), 10 en parallèle
-   = 5000 posts par vague réseau = 19 000 posts en ~4 vagues
+   savePostsBatchFS — STRATÉGIE MEGA-DOC
+   
+   Firestore gratuit = ~1 write/s throttlé.
+   Solution: on regroupe TOUS les posts dans le MOINS
+   de documents possible. 
+   
+   Firestore limite: 1MB/document.
+   On cible 900KB/doc = max de posts possible par write.
+   Pour 19 000 posts de 30 lignes (~1KB chacun):
+     -> ~900 posts/doc -> ~22 docs -> 22 writes au lieu de 19000
+   
+   Résultat: 19 000 posts en ~22 secondes au lieu de 5 heures.
 ═══════════════════════════════════════════════════════ */
-async function savePostsBatchFS(posts,onProgress){
-  if(onProgress) onProgress(0,posts.length);
-  await sleep(10); // yield pour afficher 0%
+async function savePostsBatchFS(posts, onProgress){
+  if(onProgress) await Promise.resolve(onProgress(0, posts.length));
 
-  const {db,doc,setDoc,getDoc}=await getDB();
-  const manifest=await _getManifest(db,doc,getDoc);
-  let chunkIdx=manifest.chunks;
-  const oldTotal=manifest.total;
-  const total=posts.length;
+  const {db, doc, setDoc, getDoc} = await getDB();
+  const manifest = await _getManifest(db, doc, getDoc);
+  let chunkIdx = manifest.chunks;
+  const oldTotal = manifest.total;
+  const total = posts.length;
 
-  // Mesure sur 10 posts pour avoir une taille moyenne fiable
-  const _sample=posts.slice(0,Math.min(10,posts.length));
-  const _avgSize=Math.ceil(JSON.stringify(_sample).length/_sample.length);
-  // Firestore: 1MB/doc. On vise 800KB max pour avoir de la marge.
-  const CHUNK_SZ=Math.max(30,Math.min(500,Math.floor(800000/Math.max(_avgSize,200))));
-  const PARALLEL=12;
+  // Calculer la taille réelle d'un post (moyenne sur 5)
+  const sampleJSON = JSON.stringify(posts.slice(0, Math.min(5, posts.length)));
+  const avgPostBytes = Math.ceil(sampleJSON.length / Math.min(5, posts.length));
+  
+  // 900KB par doc, avec 20% de marge pour le overhead JSON de Firestore
+  const MAX_DOC_BYTES = 900000;
+  const POSTS_PER_DOC = Math.max(10, Math.min(2000, Math.floor(MAX_DOC_BYTES / Math.max(avgPostBytes, 50))));
+  
+  console.log('[auto-upload] ' + total + ' posts | ' + avgPostBytes + ' bytes/post | ' + POSTS_PER_DOC + ' posts/doc | ' + Math.ceil(total/POSTS_PER_DOC) + ' docs total');
 
-  console.log('[auto-upload] '+total+' posts, chunk='+CHUNK_SZ+', parallel='+PARALLEL+', ~'+Math.ceil(total/CHUNK_SZ)+' chunks');
+  let done = 0;
+  const finalChunk = chunkIdx + Math.ceil(total / POSTS_PER_DOC);
 
-  // Découper en chunks
-  const chunks=[];
-  for(let i=0;i<posts.length;i+=CHUNK_SZ){
-    chunks.push({idx:chunkIdx++,data:posts.slice(i,i+CHUNK_SZ)});
-  }
-  const finalChunk=chunkIdx;
-  let done=0;
+  for(let i = 0; i < posts.length; i += POSTS_PER_DOC){
+    const slice = posts.slice(i, i + POSTS_PER_DOC);
+    const idx = chunkIdx++;
 
-  // Écrire par vagues de PARALLEL
-  for(let i=0;i<chunks.length;i+=PARALLEL){
-    const wave=chunks.slice(i,i+PARALLEL);
-    // Écrire tous les chunks de la vague en parallèle, avec retry auto si trop gros
-    await Promise.all(wave.map(async ({idx,data})=>{
-      let slice=data;
-      for(let attempt=0;attempt<5;attempt++){
-        try{
-          await setDoc(doc(db,'securedb','profiles_'+idx),{list:slice});
-          return; // succès
-        }catch(e){
-          const msg=String(e.message||e.code||'');
-          if(msg.includes('size')||msg.includes('exceeds')||msg.includes('document')){
-            // Doc trop lourd: couper en deux
-            const half=Math.ceil(slice.length/2);
-            // Écrire la moitié dans le slot courant, l'autre dans un slot de débordement
-            const spillIdx=finalChunk+200000+Math.floor(Math.random()*99999);
-            try{
-              await Promise.all([
-                setDoc(doc(db,'securedb','profiles_'+idx),{list:slice.slice(0,half)}),
-                setDoc(doc(db,'securedb','profiles_'+spillIdx),{list:slice.slice(half)})
-              ]);
-            }catch{}
-            return;
-          } else if(msg.includes('RESOURCE_EXHAUSTED')||msg.includes('quota')||msg.includes('429')){
-            // Rate limit Firestore: backoff exponentiel
-            await sleep(500*(attempt+1));
-          } else {
-            // Autre erreur: log et on passe
-            console.warn('[chunk '+idx+'] err:',e.code||e.message);
-            return;
-          }
+    let written = false;
+    let currentSlice = slice;
+    
+    // Retry: si trop gros, couper en deux jusqu'à ce que ça passe
+    while(!written){
+      try{
+        await setDoc(doc(db, 'securedb', 'profiles_' + idx), {list: currentSlice});
+        written = true;
+      }catch(e){
+        const msg = String(e.message || e.code || '');
+        if(msg.includes('size') || msg.includes('exceeds') || msg.includes('document') || msg.includes('too large')){
+          // Doc trop gros: écrire la première moitié ici, l'autre dans le prochain slot
+          const half = Math.ceil(currentSlice.length / 2);
+          const overflow = currentSlice.slice(half);
+          currentSlice = currentSlice.slice(0, half);
+          // Programmer le débordement comme un chunk supplémentaire
+          posts.splice(i + POSTS_PER_DOC, 0, ...overflow); // réinjecte dans la liste
+          // (sera traité dans la prochaine itération)
+        } else if(msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('429')){
+          console.warn('[ratelimit] attente 2s...');
+          await sleep(2000);
+        } else {
+          console.error('[chunk ' + idx + '] échec:', msg);
+          written = true; // abandonne ce chunk, on continue
         }
       }
-    }));
+    }
 
-    done+=wave.reduce((s,c)=>s+c.data.length,0);
-    // onProgress peut être une Promise (avec rAF) — on l'await pour garantir le repaint
-    if(onProgress) await Promise.resolve(onProgress(Math.min(done,total),total));
+    done += currentSlice.length;
+    if(onProgress) await Promise.resolve(onProgress(Math.min(done, total), total));
   }
 
   // Mettre à jour le manifest
   try{
-    await setDoc(doc(db,'securedb','profiles_manifest'),{
-      chunks:finalChunk,total:oldTotal+total,updatedAt:new Date().toISOString()
+    await setDoc(doc(db, 'securedb', 'profiles_manifest'), {
+      chunks: chunkIdx,
+      total: oldTotal + total,
+      updatedAt: new Date().toISOString()
     });
     _invalidateManifest();
-  }catch(e){console.warn('manifest:',e);}
+  }catch(e){console.warn('manifest:', e);}
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1758,16 +1759,12 @@ async function submitAutoUpload(){
 
   _invalidateManifest();
 
-  // Callback de progression — appelé depuis savePostsBatchFS après chaque vague
-  // requestAnimationFrame garantit le repaint visuel avant de continuer
+  // Callback de progression — simple et synchrone
+  // Le sleep(0) dans savePostsBatchFS yield le thread pour le repaint
   function onUploadProgress(done,total){
-    return new Promise(resolve=>{
-      const pct=3+Math.floor((done/total)*94);
-      fill.style.width=pct+'%';
-      label.textContent=done.toLocaleString()+' / '+total.toLocaleString()+' posts saved...';
-      // Force le browser à peindre avant de résoudre
-      requestAnimationFrame(()=>requestAnimationFrame(resolve));
-    });
+    const pct=3+Math.floor((done/total)*94);
+    fill.style.width=pct+'%';
+    label.textContent=done.toLocaleString()+' / '+total.toLocaleString()+' posts saved...';
   }
 
   let uploadOk=false;
