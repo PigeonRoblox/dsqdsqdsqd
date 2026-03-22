@@ -1610,18 +1610,12 @@ async function _getManifest(db,doc,getDoc){
 }
 
 /* ═══════════════════════════════════════════════════════
-   savePostsBatchFS — STRATÉGIE MEGA-DOC
+   savePostsBatchFS — MEGA-DOC + PARALLEL
    
-   Firestore gratuit = ~1 write/s throttlé.
-   Solution: on regroupe TOUS les posts dans le MOINS
-   de documents possible. 
+   Principe: grouper MAX de posts par doc Firestore (<=1MB)
+   puis écrire 3 docs en parallèle.
    
-   Firestore limite: 1MB/document.
-   On cible 900KB/doc = max de posts possible par write.
-   Pour 19 000 posts de 30 lignes (~1KB chacun):
-     -> ~900 posts/doc -> ~22 docs -> 22 writes au lieu de 19000
-   
-   Résultat: 19 000 posts en ~22 secondes au lieu de 5 heures.
+   Exemple: 19 000 posts x 1KB = ~19 docs -> 7 vagues de 3 = ~7 writes reseau
 ═══════════════════════════════════════════════════════ */
 async function savePostsBatchFS(posts, onProgress){
   if(onProgress) await Promise.resolve(onProgress(0, posts.length));
@@ -1632,59 +1626,64 @@ async function savePostsBatchFS(posts, onProgress){
   const oldTotal = manifest.total;
   const total = posts.length;
 
-  // Calculer la taille réelle d'un post (moyenne sur 5)
-  const sampleJSON = JSON.stringify(posts.slice(0, Math.min(5, posts.length)));
-  const avgPostBytes = Math.ceil(sampleJSON.length / Math.min(5, posts.length));
-  
-  // 900KB par doc, avec 20% de marge pour le overhead JSON de Firestore
-  const MAX_DOC_BYTES = 900000;
-  const POSTS_PER_DOC = Math.max(10, Math.min(2000, Math.floor(MAX_DOC_BYTES / Math.max(avgPostBytes, 50))));
-  
-  console.log('[auto-upload] ' + total + ' posts | ' + avgPostBytes + ' bytes/post | ' + POSTS_PER_DOC + ' posts/doc | ' + Math.ceil(total/POSTS_PER_DOC) + ' docs total');
+  // Taille moyenne sur 10 posts
+  const avgPostBytes = Math.ceil(
+    JSON.stringify(posts.slice(0, Math.min(10, posts.length))).length / Math.min(10, posts.length)
+  );
 
-  let done = 0;
-  const finalChunk = chunkIdx + Math.ceil(total / POSTS_PER_DOC);
+  // 850KB par doc (marge de 150KB pour overhead Firestore)
+  const MAX_DOC_BYTES = 850000;
+  const POSTS_PER_DOC = Math.max(10, Math.min(2000, Math.floor(MAX_DOC_BYTES / Math.max(avgPostBytes, 100))));
+  // 3 docs en parallèle = 3x plus rapide sans exploser le quota
+  const PARALLEL_DOCS = 3;
 
+  console.log('[auto-upload] ' + total + ' posts | ' + avgPostBytes + 'B/post | ' + POSTS_PER_DOC + ' posts/doc | ' + Math.ceil(total/POSTS_PER_DOC) + ' docs | parallel=' + PARALLEL_DOCS);
+
+  // Découper en docs
+  const docChunks = [];
   for(let i = 0; i < posts.length; i += POSTS_PER_DOC){
-    const slice = posts.slice(i, i + POSTS_PER_DOC);
-    const idx = chunkIdx++;
+    docChunks.push({idx: chunkIdx++, data: posts.slice(i, i + POSTS_PER_DOC)});
+  }
+  const finalChunk = chunkIdx;
+  let done = 0;
 
-    let written = false;
-    let currentSlice = slice;
-    
-    // Retry: si trop gros, couper en deux jusqu'à ce que ça passe
-    while(!written){
+  async function writeDocWithRetry(idx, data){
+    let slice = data;
+    for(let attempt = 0; attempt < 6; attempt++){
       try{
-        await setDoc(doc(db, 'securedb', 'profiles_' + idx), {list: currentSlice});
-        written = true;
+        await setDoc(doc(db, 'securedb', 'profiles_' + idx), {list: slice});
+        return slice.length; // nb posts écrits
       }catch(e){
         const msg = String(e.message || e.code || '');
-        if(msg.includes('size') || msg.includes('exceeds') || msg.includes('document') || msg.includes('too large')){
-          // Doc trop gros: écrire la première moitié ici, l'autre dans le prochain slot
-          const half = Math.ceil(currentSlice.length / 2);
-          const overflow = currentSlice.slice(half);
-          currentSlice = currentSlice.slice(0, half);
-          // Programmer le débordement comme un chunk supplémentaire
-          posts.splice(i + POSTS_PER_DOC, 0, ...overflow); // réinjecte dans la liste
-          // (sera traité dans la prochaine itération)
+        if(msg.includes('size') || msg.includes('exceeds') || msg.includes('too large') || msg.includes('document')){
+          // Doc trop lourd: réduire de moitié et réessayer
+          slice = slice.slice(0, Math.ceil(slice.length / 2));
+          console.warn('[chunk ' + idx + '] trop lourd, réduit à ' + slice.length + ' posts');
         } else if(msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('429')){
-          console.warn('[ratelimit] attente 2s...');
-          await sleep(2000);
+          const wait = 1000 * (attempt + 1);
+          console.warn('[ratelimit] attente ' + wait + 'ms');
+          await sleep(wait);
         } else {
-          console.error('[chunk ' + idx + '] échec:', msg);
-          written = true; // abandonne ce chunk, on continue
+          console.error('[chunk ' + idx + '] erreur:', msg);
+          return 0;
         }
       }
     }
+    return 0;
+  }
 
-    done += currentSlice.length;
+  // Écrire par vagues de PARALLEL_DOCS
+  for(let i = 0; i < docChunks.length; i += PARALLEL_DOCS){
+    const wave = docChunks.slice(i, i + PARALLEL_DOCS);
+    const results = await Promise.all(wave.map(({idx, data}) => writeDocWithRetry(idx, data)));
+    done += results.reduce((a, b) => a + b, 0);
     if(onProgress) await Promise.resolve(onProgress(Math.min(done, total), total));
   }
 
   // Mettre à jour le manifest
   try{
     await setDoc(doc(db, 'securedb', 'profiles_manifest'), {
-      chunks: chunkIdx,
+      chunks: finalChunk,
       total: oldTotal + total,
       updatedAt: new Date().toISOString()
     });
