@@ -37,7 +37,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;ove
 #loading-screen{
   position:fixed;inset:0;z-index:99999;
   background:#0c0c0c;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:28px;
 }
 .loading-logo{font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:8px;color:var(--white)}
 .loading-logo span{color:#333}
@@ -357,7 +357,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;ove
 </div>
 
 <!-- LOADING SCREEN -->
-<div id="loading-screen" style="display:none">
+<div id="loading-screen">
   <div class="loading-logo">SECURE<span>DB</span></div>
   <div class="loading-spinner"></div>
   <div class="loading-text" id="loading-text">Loading website, please wait</div>
@@ -366,7 +366,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;ove
 </div>
 
 <!-- KEY GATE -->
-<div id="keygate">
+<div id="keygate" style="display:none">
   <div class="key-logo">SECURE<span>DB</span></div>
   <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:var(--text2);text-align:center">ENTER YOUR ACCESS KEY</div>
   <div style="font-size:12px;color:var(--text3);font-family:'JetBrains Mono',monospace;text-align:center">Please enter your entrance KEY to continue</div>
@@ -699,7 +699,7 @@ const ADMINN_EMAIL='1l6q@protonmail.com';
 const KEYS_URL='https://raw.githubusercontent.com/PigeonRoblox/Somegdfqsdq/refs/heads/main/ssdqsqddsq';
 const CHUNK_SIZE=50;
 const PAGE_SIZE=20;
-const PARALLEL_CHUNKS=20; // Nombre de chunks chargés en parallèle
+const PARALLEL_CHUNKS=20;
 const PAYPAL_PREMIUM_LINK='https://www.paypal.com/paypalme/AntoinneDuPont/1EUR';
 const PAYPAL_POINTS_LINKS={
   100:'https://www.paypal.com/paypalme/AntoinneDuPont/1EUR',
@@ -726,8 +726,6 @@ let currentUser=null, profilesLoaded=false;
 let shuffledProfiles=[], activeCategory='', currentSort='shuffle';
 let _filteredList=[], _renderedCount=0, _scrollObserver=null;
 let _cachedStats={}, undefinedLabel='Undefined by user';
-
-// Background load state
 let _bgLoadActive=false;
 let _bgTotalLoaded=0;
 let _bgLoadCompleted=false;
@@ -1114,7 +1112,6 @@ function updateStatCount(done){const sc=document.getElementById('stat-count');if
 function showBgLoadIndicator(show){const el=document.getElementById('bg-load-indicator');if(!el) return;el.style.display=show?'flex':'none';}
 function setLoadingText(txt){const el=document.getElementById('loading-text');if(el) el.textContent=txt;const cnt=document.getElementById('loading-count');if(cnt&&allProfiles.length>0) cnt.textContent=allProfiles.length.toLocaleString()+' posts loaded...';}
 
-let _bgLoadActive=false,_bgLoadCompleted=false;
 let _uiUpdatePending=false;
 async function scheduleUIUpdate(count){
   if(_uiUpdatePending) return;_uiUpdatePending=true;
@@ -1389,9 +1386,29 @@ async function submitProfile(){
 
 let currentFile=null,currentFileContent='';
 const ALLOWED_EXT=['.txt','.json','.html'];
+
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('f-file-access')?.addEventListener('change',function(){document.getElementById('points-cost-field').style.display=this.value==='points'?'block':'none';});
+  // FIX: Initialise la keygate correctement selon session
+  _initKeyGate();
 });
+
+/* ═══════════════════════════════════════════════════════
+   FIX #1: INIT KEYGATE — logique centralisée ici
+═══════════════════════════════════════════════════════ */
+function _initKeyGate(){
+  if(sessionStorage.getItem('sdb-auth')==='1'){
+    // Déjà authentifié: cacher keygate, montrer loading screen
+    document.getElementById('keygate').style.display='none';
+    // Lance directement le loading screen + preload
+    _runLoadingAndEnter();
+  } else {
+    // Pas encore auth: montrer keygate, cacher loading screen
+    document.getElementById('loading-screen').style.display='none';
+    document.getElementById('keygate').style.display='flex';
+  }
+}
+
 function fileDragOver(e){e.preventDefault();document.getElementById('file-drop-zone')?.classList.add('drag');}
 function fileDragLeave(){document.getElementById('file-drop-zone')?.classList.remove('drag');}
 function fileDrop(e){e.preventDefault();document.getElementById('file-drop-zone')?.classList.remove('drag');const f=e.dataTransfer.files[0];if(f) processFile(f);}
@@ -1461,7 +1478,6 @@ async function _startFullBackgroundLoad(db,doc,getDoc,seen){
   showBgLoadIndicator(true);
   const {collection,getDocs,query,orderBy,getDoc:gd2}=await getDB();
 
-  // Lire manifest
   let totalChunks=0;
   try{const ms=await getDoc(doc(db,'securedb','profiles_manifest'));if(ms.exists()) totalChunks=ms.data().chunks||0;}catch{}
 
@@ -1484,10 +1500,8 @@ async function _startFullBackgroundLoad(db,doc,getDoc,seen){
     await sleep(10);
   }
 
-  // Inbox
   try{const s=await getDoc(doc(db,'securedb','inbox')).catch(()=>null);if(s&&s.exists()){let a=0;(s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);a++;}});if(a>0) await scheduleUIUpdate(seen.size);}}catch{}
 
-  // Collection posts
   try{
     const snap=await getDocs(collection(db,'posts'));
     let added=0;
@@ -1504,14 +1518,9 @@ async function _startFullBackgroundLoad(db,doc,getDoc,seen){
   if(!q&&!activeCategory) renderProfiles();
 }
 
-
 /* ═══════════════════════════════════════════════════════
    DB LAYER — ÉCRITURE
-   Essaie d'abord "posts" (1 doc/post), fallback sur
-   securedb/profiles_N (chunks) si les règles bloquent.
 ═══════════════════════════════════════════════════════ */
-
-// Test une seule fois si l'écriture dans "posts" est autorisée
 let _canWritePosts=null;
 async function canWriteToPosts(){
   if(_canWritePosts!==null) return _canWritePosts;
@@ -1519,10 +1528,8 @@ async function canWriteToPosts(){
     const {db,collection,doc,setDoc,deleteDoc}=await getDB();
     const testId='__wt_'+Date.now();
     await setDoc(doc(collection(db,'posts'),testId),{_test:true});
-    // essaie de supprimer le doc de test (peut échouer si pas le droit, c'est ok)
     deleteDoc(doc(collection(db,'posts'),testId)).catch(()=>{});
     _canWritePosts=true;
-    console.log('[DB] posts collection: WRITABLE');
   }catch(e){
     console.warn('[DB] posts collection not writable:',e.code,'->fallback to legacy chunks');
     _canWritePosts=false;
@@ -1530,38 +1537,26 @@ async function canWriteToPosts(){
   return _canWritePosts;
 }
 
-// Fallback: ajoute dans les chunks securedb/profiles_N
-async function appendToLegacyChunks(newPosts, onProgress){
+async function appendToLegacyChunks(newPosts,onProgress){
   const {db,doc,getDoc,setDoc}=await getDB();
-
-  // Lire le manifest pour connaître le dernier chunk
   let nextChunk=0;
   let manifestTotal=0;
   try{
     const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
     if(ms.exists()){nextChunk=ms.data().chunks||0;manifestTotal=ms.data().total||0;}
   }catch{}
-
   const POSTS_PER_CHUNK=50;
   const total=newPosts.length;
   let done=0;
-
-  // Écrire chunk par chunk séquentiellement
   for(let i=0;i<total;i+=POSTS_PER_CHUNK){
     const slice=newPosts.slice(i,i+POSTS_PER_CHUNK);
     await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice});
-    nextChunk++;
-    done+=slice.length;
+    nextChunk++;done+=slice.length;
     if(onProgress) onProgress(done,total);
-    // Pause toutes les 20 chunks pour ne pas saturer Firestore
     if(nextChunk%20===0) await new Promise(r=>setTimeout(r,100));
   }
-
-  // Mettre à jour le manifest
   await setDoc(doc(db,'securedb','profiles_manifest'),{
-    chunks:nextChunk,
-    total:manifestTotal+total,
-    updatedAt:new Date().toISOString()
+    chunks:nextChunk,total:manifestTotal+total,updatedAt:new Date().toISOString()
   });
 }
 
@@ -1576,42 +1571,30 @@ async function savePostFS(post){
     }
   }catch(e){
     console.error('[savePostFS] error:',e);
-    // dernier recours: legacy
     await appendToLegacyChunks([post]);
   }
 }
-async function savePostsBatchFS(posts, onProgress){
-  const {db,doc,setDoc,getDoc}=await getDB();
 
-  // Lire manifest pour trouver le prochain slot libre
-  let startChunk=0, oldTotal=0;
+async function savePostsBatchFS(posts,onProgress){
+  const {db,doc,setDoc,getDoc}=await getDB();
+  let startChunk=0,oldTotal=0;
   try{
     const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
     if(ms.exists()){startChunk=ms.data().chunks||0;oldTotal=ms.data().total||0;}
   }catch{}
-
-  // Vérifier que startChunk est bien libre (max 5 probes)
   for(let p=startChunk;p<startChunk+5;p++){
-    try{
-      const s=await getDoc(doc(db,'securedb','profiles_'+p));
-      if(!s.exists()){startChunk=p;break;}
-    }catch{startChunk=p;break;}
+    try{const s=await getDoc(doc(db,'securedb','profiles_'+p));if(!s.exists()){startChunk=p;break;}}catch{startChunk=p;break;}
   }
-
-  const CHUNK_SIZE=40; // 40 posts/chunk ~400KB max
-  const PARALLEL=6;   // 6 écritures simultanées
+  const CHUNK_SZ=40;
+  const PARALLEL=6;
   const total=posts.length;
   let done=0;
   let chunkIdx=startChunk;
-
-  // Découper en chunks
   const chunks=[];
-  for(let i=0;i<posts.length;i+=CHUNK_SIZE){
-    chunks.push({idx:chunkIdx++, data:posts.slice(i,i+CHUNK_SIZE)});
+  for(let i=0;i<posts.length;i+=CHUNK_SZ){
+    chunks.push({idx:chunkIdx++,data:posts.slice(i,i+CHUNK_SZ)});
   }
   const finalChunk=chunkIdx;
-
-  // Écrire par vagues de PARALLEL
   for(let i=0;i<chunks.length;i+=PARALLEL){
     const wave=chunks.slice(i,i+PARALLEL);
     await Promise.all(wave.map(async ({idx,data})=>{
@@ -1619,30 +1602,30 @@ async function savePostsBatchFS(posts, onProgress){
         await setDoc(doc(db,'securedb','profiles_'+idx),{list:data});
       }catch(e){
         if(String(e.message).includes('size')||String(e.message).includes('exceeds')){
-          // Chunk trop lourd: split en 2
           const h=Math.ceil(data.length/2);
           await Promise.all([
             setDoc(doc(db,'securedb','profiles_'+idx),{list:data.slice(0,h)}),
             setDoc(doc(db,'securedb','profiles_'+(idx+100000+Math.floor(Math.random()*9999))),{list:data.slice(h)})
           ]);
         }
-        // autres erreurs silencieuses (les posts sont déjà dans l'UI)
       }
     }));
     done+=wave.reduce((s,c)=>s+c.data.length,0);
     if(onProgress) onProgress(Math.min(done,total),total);
-    await sleep(20); // 20ms entre vagues = rapide
+    await sleep(20);
   }
-
-  // Mettre à jour le manifest
   try{
     await setDoc(doc(db,'securedb','profiles_manifest'),{
-      chunks:finalChunk, total:oldTotal+total,
-      updatedAt:new Date().toISOString()
+      chunks:finalChunk,total:oldTotal+total,updatedAt:new Date().toISOString()
     });
   }catch(e){console.warn('manifest',e);}
 }
 
+/* ═══════════════════════════════════════════════════════
+   FIX #2: AUTO-UPLOAD — split lines corrigé
+   Le HTML encode les retours à la ligne, on normalise
+   CR+LF et LF avant de splitter.
+═══════════════════════════════════════════════════════ */
 async function submitAutoUpload(){
   const name=document.getElementById('f-auto-name').value.trim();
   const linesPerPost=parseInt(document.getElementById('f-auto-lines').value)||2;
@@ -1664,16 +1647,15 @@ async function submitAutoUpload(){
   const postedBy=currentUser?(_userData.displayName||currentUser.email.split('@')[0]):'Anonyme';
   const baseTime=Date.now();
 
-  // Découper le fichier en posts SANS tout mettre en mémoire d'un coup
-  // On traite ligne par ligne de façon lazy
-  const allLines=autoFileContent.split('
-');
+  // FIX: Normaliser les retours à la ligne (CRLF -> LF) avant de splitter
+  const normalizedContent=autoFileContent.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+  const allLines=normalizedContent.split('\n');
+
   const newPosts=[];
   let postIdx=0;
 
   for(let i=0;i<allLines.length;i+=linesPerPost){
-    const c=allLines.slice(i,i+linesPerPost).join('
-').trim();
+    const c=allLines.slice(i,i+linesPerPost).join('\n').trim();
     if(!c) continue;
     newPosts.push({
       id:baseTime+postIdx,
@@ -1691,20 +1673,31 @@ async function submitAutoUpload(){
   label.textContent='0 / '+newPosts.length.toLocaleString()+' posts saved...';
   fill.style.width='2%';
 
-  // Ajouter dans l'UI seulement les 50 premiers pour pas freeze le DOM
+  // Preview UI immédiat (50 premiers)
   const uiPreview=newPosts.slice(0,50);
   allProfiles=[...uiPreview,...allProfiles];
   shuffledProfiles=[...uiPreview,...shuffledProfiles];
   profilesLoaded=true;
 
-  try{
-    await savePostsBatchFS(newPosts,(done,total)=>{
-      const pct=2+Math.floor((done/total)*95);
-      fill.style.width=pct+'%';
-      label.textContent=done.toLocaleString()+' / '+total.toLocaleString()+' posts saved...';
-    });
+  // FIX: Chunker en lots plus petits pour éviter le crash mémoire (max 500 posts/vague)
+  const BATCH_SIZE=500;
+  let totalDone=0;
 
-    // Ajouter le reste dans l'UI maintenant que c'est sauvé
+  try{
+    for(let batchStart=0;batchStart<newPosts.length;batchStart+=BATCH_SIZE){
+      const batch=newPosts.slice(batchStart,batchStart+BATCH_SIZE);
+      await savePostsBatchFS(batch,(done,total)=>{
+        const overallDone=batchStart+done;
+        const pct=2+Math.floor((overallDone/newPosts.length)*95);
+        fill.style.width=pct+'%';
+        label.textContent=overallDone.toLocaleString()+' / '+newPosts.length.toLocaleString()+' posts saved...';
+      });
+      totalDone+=batch.length;
+      // Petite pause entre batches pour pas freeze le browser
+      await sleep(50);
+    }
+
+    // Ajouter le reste dans l'UI
     const rest=newPosts.slice(50);
     allProfiles=[...rest,...allProfiles];
     shuffledProfiles=[...rest,...shuffledProfiles];
@@ -1807,11 +1800,9 @@ document.addEventListener('keydown',e=>{
 (function devtoolsCheck(){setInterval(()=>{if(window.outerWidth-window.innerWidth>160||window.outerHeight-window.innerHeight>160){document.body.innerHTML='<div style="background:#0c0c0c;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;color:#444;font-size:14px">ACCESS RESTRICTED</div>';}},1000);})();
 
 /* ═══════════════════════════════════════════════════════
-   KEY GATE + LOADING SCREEN
-   
-   PENDANT LES 10 SECONDES DE CHARGEMENT:
-   On précharge Firebase et tous les posts en parallèle.
-   La barre de progression reflète la progression réelle.
+   FIX #3: KEY GATE + LOADING SCREEN
+   checkKey() -> sessionStorage -> _runLoadingAndEnter()
+   _initKeyGate() gère la logique au chargement initial
 ═══════════════════════════════════════════════════════ */
 async function checkKey(){
   const input=document.getElementById('key-input').value.trim();
@@ -1824,32 +1815,36 @@ async function checkKey(){
     const validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
     if(validKeys.includes(input)){
       sessionStorage.setItem('sdb-auth','1');
-      // Show loading screen for 10s
-      showLoadingScreen();
+      // Cacher la keygate et lancer le loading
+      document.getElementById('keygate').style.display='none';
+      _runLoadingAndEnter();
     } else {
-      err.textContent='Invalid key. Access denied.';btn.disabled=false;btn.textContent='ENTER';
+      err.textContent='Invalid key. Access denied.';
+      btn.disabled=false;
+      btn.textContent='ENTER';
     }
   }catch(e){
-    err.textContent='Connection error. Try again.';btn.disabled=false;btn.textContent='ENTER';
+    err.textContent='Connection error. Try again.';
+    btn.disabled=false;
+    btn.textContent='ENTER';
   }
 }
 
-function showLoadingScreen(){
-  const kg=document.getElementById('keygate');if(kg) kg.style.display='none';
-  const ls=document.getElementById('loading-screen');ls.style.display='flex';
+/* Lance le loading screen 10s + preload en parallèle, puis entre dans le site */
+function _runLoadingAndEnter(){
+  const ls=document.getElementById('loading-screen');
+  ls.style.display='flex';
   const bar=document.getElementById('loading-bar');
   const totalMs=10000;
-  let startTime=Date.now();
-  let loadingDone=false;
+  const startTime=Date.now();
 
   // Lance le préchargement complet en background PENDANT les 10s
-  _startPreload().then(()=>{loadingDone=true;});
+  _startPreload().catch(()=>{});
 
   // Barre de progression basée sur le temps + progression réelle
   const iv=setInterval(()=>{
     const elapsed=Date.now()-startTime;
     const timeProgress=Math.min(elapsed/totalMs,1);
-    // La barre monte selon le temps, mais accélère si on a beaucoup de posts
     const postProgress=allProfiles.length>0?Math.min(allProfiles.length/1000,0.7):0;
     const pct=Math.min(Math.max(timeProgress*100,postProgress*100),99);
     bar.style.width=pct+'%';
@@ -1858,7 +1853,12 @@ function showLoadingScreen(){
     if(elapsed>=totalMs){
       clearInterval(iv);
       bar.style.width='100%';
-      setTimeout(()=>{ls.style.display='none';},200);
+      setTimeout(()=>{
+        ls.style.display='none';
+        // Initialise Firebase Auth silencieusement
+        getAuth().catch(()=>{});
+        loadAnnouncement().catch(()=>{});
+      },200);
     }
   },100);
 }
@@ -1867,19 +1867,16 @@ function showLoadingScreen(){
 async function _startPreload(){
   try{
     setLoadingText('Connecting to database...');
-    // Initialiser Firebase Auth et DB en parallèle
     await Promise.all([
       getAuth().catch(()=>{}),
       getDB().catch(()=>{}),
       loadStats().catch(()=>{}),
-      loadAnnouncement().catch(()=>{}),
     ]);
     setLoadingText('Loading posts...');
 
-    const {db,doc,getDoc,collection,getDocs,query,orderBy}=await getDB();
+    const {db,doc,getDoc,collection,getDocs}=await getDB();
     const seen=new Set();
 
-    // Lire le manifest
     let totalChunks=0;
     try{
       const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest'));
@@ -1888,10 +1885,10 @@ async function _startPreload(){
 
     setLoadingText('Loading '+totalChunks+' chunks...');
 
-    // Charger TOUS les chunks profiles_0..N en parallèle (vagues de 20)
+    // Charger TOUS les chunks en parallèle (vagues de PARALLEL_CHUNKS)
     let chunkIdx=0;
     let missCount=0;
-    const hardLimit=Math.max(totalChunks+10,200); // au moins 200 chunks tentés
+    const hardLimit=Math.max(totalChunks+10,200);
 
     while(chunkIdx<hardLimit&&missCount<3){
       const batch=[];
@@ -1919,7 +1916,7 @@ async function _startPreload(){
       }
     }catch{}
 
-    // Collection posts avec PAGINATION (startAfter) — sinon on rate tout apres 300 docs
+    // Collection posts paginée
     try{
       setLoadingText('Loading posts collection...');
       const {limit,startAfter,query:fsQuery,orderBy:fsOrderBy}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
@@ -1940,7 +1937,6 @@ async function _startPreload(){
       }
     }catch(e){console.warn('posts collection preload',e);}
 
-    // Finalize
     shuffledProfiles=getSessionShuffle([...allProfiles]);
     profilesLoaded=true;
     _bgLoadCompleted=true;
@@ -1950,28 +1946,6 @@ async function _startPreload(){
     console.error('preload error',e);
     profilesLoaded=true;
   }
-}
-
-// Vérif session déjà auth
-if(sessionStorage.getItem('sdb-auth')==='1'){
-  const kg=document.getElementById('keygate');if(kg) kg.style.display='none';
-  // Préchargement silencieux sans écran de loading
-  Promise.all([
-    getAuth().catch(()=>{}),
-    loadStats().catch(()=>{}),
-    loadAnnouncement().catch(()=>{}),
-  ]).then(()=>{
-    // Lance le chargement complet en background
-    getDB().then(({db,doc,getDoc,collection,getDocs,query,orderBy})=>{
-      const seen=new Set();
-      _startPreload().then(()=>{
-        if(document.getElementById('view-browse')?.style.display!=='none'){
-          renderCategories(shuffledProfiles);
-          renderProfiles();
-        }
-      }).catch(()=>{});
-    }).catch(()=>{});
-  });
 }
 </script>
 </body>
