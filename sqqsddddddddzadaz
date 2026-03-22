@@ -1824,6 +1824,7 @@ async function checkKey(){
     const validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
     if(validKeys.includes(input)){
       sessionStorage.setItem('sdb-auth','1');
+      // Show loading screen for 10s
       showLoadingScreen();
     } else {
       err.textContent='Invalid key. Access denied.';btn.disabled=false;btn.textContent='ENTER';
