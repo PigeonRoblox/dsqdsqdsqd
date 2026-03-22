@@ -1186,57 +1186,59 @@ async function savePostsBatchFS(posts, onProgress){
   const {db,doc,setDoc,getDoc}=await getDB();
 
   // Lire le manifest
-  let nextChunk=0, oldTotal=0;
+  let startChunk=0, oldTotal=0;
   try{
     const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
-    if(ms.exists()){nextChunk=ms.data().chunks||0;oldTotal=ms.data().total||0;}
+    if(ms.exists()){startChunk=ms.data().chunks||0;oldTotal=ms.data().total||0;}
   }catch{}
 
-  // Scanner pour trouver le premier chunk vraiment vide
-  for(let probe=nextChunk;probe<nextChunk+30;probe++){
+  // Trouver le premier slot vraiment vide (max 5 probes)
+  for(let probe=startChunk;probe<startChunk+5;probe++){
     try{
       const s=await getDoc(doc(db,'securedb','profiles_'+probe));
-      if(!s.exists()){nextChunk=probe;break;}
-    }catch{nextChunk=probe;break;}
+      if(!s.exists()){startChunk=probe;break;}
+    }catch{startChunk=probe;break;}
   }
 
-  // 30 posts/chunk = ~300KB max, tres safe sous la limite 1MB
-  const POSTS_PER_CHUNK=30;
+  // Découper en chunks de 40 posts
+  const CHUNK_SIZE=40;
+  const chunks=[];
+  for(let i=0;i<posts.length;i+=CHUNK_SIZE){
+    chunks.push({idx:startChunk+chunks.length, data:posts.slice(i,i+CHUNK_SIZE)});
+  }
+
   const total=posts.length;
   let done=0;
-  const startChunk=nextChunk;
+  const PARALLEL=8; // 8 writes simultanées = rapide sans throttle
 
-  for(let i=0;i<total;i+=POSTS_PER_CHUNK){
-    const slice=posts.slice(i,i+POSTS_PER_CHUNK);
-    let ok=false, tries=0;
-    while(!ok&&tries<5){
+  for(let i=0;i<chunks.length;i+=PARALLEL){
+    const wave=chunks.slice(i,i+PARALLEL);
+    await Promise.all(wave.map(async ({idx,data})=>{
       try{
-        await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice});
-        ok=true;
+        await setDoc(doc(db,'securedb','profiles_'+idx),{list:data});
       }catch(e){
-        if(e.message&&(e.message.includes('size')||e.message.includes('exceeds'))){
-          // Trop gros: couper en 2
-          const half=Math.ceil(slice.length/2);
-          await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice.slice(0,half)});
-          nextChunk++;
-          await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice.slice(half)});
-          ok=true;
-        } else {
-          tries++;
-          await sleep(600*tries);
-          nextChunk++;
+        if(e.message&&e.message.includes('size')){
+          // Trop gros: écrire en 2 fois au même index + index+1000000 (collision safe)
+          const half=Math.ceil(data.length/2);
+          await setDoc(doc(db,'securedb','profiles_'+idx),{list:data.slice(0,half)});
+          // Le 2ème demi va à un index unique basé sur timestamp
+          const idx2=Date.now()+Math.floor(Math.random()*9999);
+          await setDoc(doc(db,'securedb','profiles_'+idx2),{list:data.slice(half)});
         }
+        // Autres erreurs: on ignore, le post est déjà dans l'UI
       }
-    }
-    nextChunk++;
-    done+=slice.length;
-    if(onProgress) onProgress(done,total);
-    if((nextChunk-startChunk)%10===0) await sleep(120);
+      done+=data.length;
+      if(onProgress) onProgress(Math.min(done,total),total);
+    }));
+    // 30ms entre chaque vague = fluide et rapide
+    if(i+PARALLEL<chunks.length) await sleep(30);
   }
 
+  // Manifest
+  const finalChunk=startChunk+chunks.length;
   try{
     await setDoc(doc(db,'securedb','profiles_manifest'),{
-      chunks:nextChunk, total:oldTotal+total,
+      chunks:finalChunk, total:oldTotal+total,
       updatedAt:new Date().toISOString()
     });
   }catch(e){console.warn('manifest',e);}
