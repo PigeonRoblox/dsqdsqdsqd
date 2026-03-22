@@ -1107,363 +1107,25 @@ function renderCategories(profiles){
   });
 }
 
-/* ═══════════════════════════════════════════════════════
-   DB LAYER — ÉCRITURE
-   Essaie d'abord "posts" (1 doc/post), fallback sur
-   securedb/profiles_N (chunks) si les règles bloquent.
-═══════════════════════════════════════════════════════ */
-
-// Test une seule fois si l'écriture dans "posts" est autorisée
-let _canWritePosts=null;
-async function canWriteToPosts(){
-  if(_canWritePosts!==null) return _canWritePosts;
-  try{
-    const {db,collection,doc,setDoc,deleteDoc}=await getDB();
-    const testId='__wt_'+Date.now();
-    await setDoc(doc(collection(db,'posts'),testId),{_test:true});
-    // essaie de supprimer le doc de test (peut échouer si pas le droit, c'est ok)
-    deleteDoc(doc(collection(db,'posts'),testId)).catch(()=>{});
-    _canWritePosts=true;
-    console.log('[DB] posts collection: WRITABLE');
-  }catch(e){
-    console.warn('[DB] posts collection not writable:',e.code,'->fallback to legacy chunks');
-    _canWritePosts=false;
-  }
-  return _canWritePosts;
-}
-
-// Fallback: ajoute dans les chunks securedb/profiles_N
-async function appendToLegacyChunks(newPosts, onProgress){
-  const {db,doc,getDoc,setDoc}=await getDB();
-
-  // Lire le manifest pour connaître le dernier chunk
-  let nextChunk=0;
-  let manifestTotal=0;
-  try{
-    const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
-    if(ms.exists()){nextChunk=ms.data().chunks||0;manifestTotal=ms.data().total||0;}
-  }catch{}
-
-  const POSTS_PER_CHUNK=50;
-  const total=newPosts.length;
-  let done=0;
-
-  // Écrire chunk par chunk séquentiellement
-  for(let i=0;i<total;i+=POSTS_PER_CHUNK){
-    const slice=newPosts.slice(i,i+POSTS_PER_CHUNK);
-    await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice});
-    nextChunk++;
-    done+=slice.length;
-    if(onProgress) onProgress(done,total);
-    // Pause toutes les 20 chunks pour ne pas saturer Firestore
-    if(nextChunk%20===0) await new Promise(r=>setTimeout(r,100));
-  }
-
-  // Mettre à jour le manifest
-  await setDoc(doc(db,'securedb','profiles_manifest'),{
-    chunks:nextChunk,
-    total:manifestTotal+total,
-    updatedAt:new Date().toISOString()
-  });
-}
-
-async function savePostFS(post){
-  try{
-    const ok=await canWriteToPosts();
-    if(ok){
-      const {db,collection,doc,setDoc}=await getDB();
-      await setDoc(doc(collection(db,'posts'),String(post.id)),post);
-    } else {
-      await appendToLegacyChunks([post]);
-    }
-  }catch(e){
-    console.error('[savePostFS] error:',e);
-    // dernier recours: legacy
-    await appendToLegacyChunks([post]);
-  }
-}
-async function savePostsBatchFS(posts, onProgress){
-  const {db,doc,setDoc,getDoc}=await getDB();
-
-  // Lire le manifest
-  let startChunk=0, oldTotal=0;
-  try{
-    const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
-    if(ms.exists()){startChunk=ms.data().chunks||0;oldTotal=ms.data().total||0;}
-  }catch{}
-
-  // Trouver le premier slot vraiment vide (max 5 probes)
-  for(let probe=startChunk;probe<startChunk+5;probe++){
-    try{
-      const s=await getDoc(doc(db,'securedb','profiles_'+probe));
-      if(!s.exists()){startChunk=probe;break;}
-    }catch{startChunk=probe;break;}
-  }
-
-  // Découper en chunks de 40 posts
-  const CHUNK_SIZE=40;
-  const chunks=[];
-  for(let i=0;i<posts.length;i+=CHUNK_SIZE){
-    chunks.push({idx:startChunk+chunks.length, data:posts.slice(i,i+CHUNK_SIZE)});
-  }
-
-  const total=posts.length;
-  let done=0;
-  const PARALLEL=8; // 8 writes simultanées = rapide sans throttle
-
-  for(let i=0;i<chunks.length;i+=PARALLEL){
-    const wave=chunks.slice(i,i+PARALLEL);
-    await Promise.all(wave.map(async ({idx,data})=>{
-      try{
-        await setDoc(doc(db,'securedb','profiles_'+idx),{list:data});
-      }catch(e){
-        if(e.message&&e.message.includes('size')){
-          // Trop gros: écrire en 2 fois au même index + index+1000000 (collision safe)
-          const half=Math.ceil(data.length/2);
-          await setDoc(doc(db,'securedb','profiles_'+idx),{list:data.slice(0,half)});
-          // Le 2ème demi va à un index unique basé sur timestamp
-          const idx2=Date.now()+Math.floor(Math.random()*9999);
-          await setDoc(doc(db,'securedb','profiles_'+idx2),{list:data.slice(half)});
-        }
-        // Autres erreurs: on ignore, le post est déjà dans l'UI
-      }
-      done+=data.length;
-      if(onProgress) onProgress(Math.min(done,total),total);
-    }));
-    // 30ms entre chaque vague = fluide et rapide
-    if(i+PARALLEL<chunks.length) await sleep(30);
-  }
-
-  // Manifest
-  const finalChunk=startChunk+chunks.length;
-  try{
-    await setDoc(doc(db,'securedb','profiles_manifest'),{
-      chunks:finalChunk, total:oldTotal+total,
-      updatedAt:new Date().toISOString()
-    });
-  }catch(e){console.warn('manifest',e);}
-}
-
-/* ═══════════════════════════════════════════════════════
-   CHARGEMENT COMPLET — STRATÉGIE FIXÉE
-   
-   PROBLÈME ORIGINAL: Le code ne chargeait que les 5 derniers
-   chunks du manifest + un getDocs() limité à ~300 docs.
-   
-   SOLUTION:
-   1. Lire le manifest pour connaître le nb de chunks
-   2. Charger TOUS les chunks profiles_0..N en parallèle (20 à la fois)
-   3. Charger la collection "posts" avec getDocs() SANS limit
-   4. Charger l'inbox
-   5. Dédupliquer par id
-   6. Afficher progressivement sans bloquer l'UI (requestIdleCallback / setTimeout 0)
-═══════════════════════════════════════════════════════ */
-async function loadAllProfiles(){
-  if(profilesLoaded) return;
-  const grid=document.getElementById('profiles-grid');
-  grid.innerHTML='<div class="spinner"></div>';
-
-  // Lancer stats en parallèle, non-bloquant
-  loadStats().catch(()=>{});
-
-  try{
-    const {db,doc,getDoc,collection,getDocs,query,orderBy}=await getDB();
-    const seen=new Set();
-
-    // ── ÉTAPE 1: Lire le manifest pour connaître le nombre de chunks ──
-    let totalChunks=0;
-    try{
-      const manifestSnap=await getDoc(doc(db,'securedb','profiles_manifest'));
-      if(manifestSnap.exists()){
-        totalChunks=manifestSnap.data().chunks||0;
-      }
-    }catch(e){console.warn('Manifest non trouvé, scan automatique',e);}
-
-    // ── ÉTAPE 2: Si manifest vide, scanner jusqu'à trouver le bout ──
-    // On va charger par vagues de PARALLEL_CHUNKS
-    const processChunkSnap=(snap)=>{
-      if(!snap||!snap.exists()) return 0;
-      let added=0;
-      (snap.data().list||[]).forEach(p=>{
-        const k=String(p.id);
-        if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}
-      });
-      return added;
-    };
-
-    // Charger d'abord les 3 premiers chunks pour affichage rapide
-    const firstSnaps=await Promise.all([
-      getDoc(doc(db,'securedb','profiles_0')).catch(()=>null),
-      getDoc(doc(db,'securedb','profiles_1')).catch(()=>null),
-      getDoc(doc(db,'securedb','profiles_2')).catch(()=>null),
-    ]);
-    firstSnaps.forEach(s=>processChunkSnap(s));
-
-    // Afficher immédiatement avec ce qu'on a
-    shuffledProfiles=getSessionShuffle([...allProfiles]);
-    profilesLoaded=true;
-    updateStatCount(false);
-    renderCategories(shuffledProfiles);
-    renderProfiles();
-
-    // ── ÉTAPE 3: Charger TOUS les chunks restants en background ──
-    if(!_bgLoadActive){
-      _bgLoadActive=true;
-      _startFullBackgroundLoad(db,doc,getDoc,collection,getDocs,query,orderBy,seen,totalChunks);
-    }
-
-  }catch(e){
-    console.error('loadAllProfiles',e);
-    profilesLoaded=true;
-    renderProfiles();
-  }
-}
-
-async function _startFullBackgroundLoad(db,doc,getDoc,collection,getDocs,query,orderBy,seen,knownChunks){
-  showBgLoadIndicator(true);
-  let totalAdded=0;
-
-  // ── PHASE A: Charger tous les chunks profiles_N en parallèle ──
-  // On détermine la vraie limite en scannant jusqu'à 3 manques consécutifs
-  let chunkIdx=3; // déjà chargé 0,1,2
-  let missCount=0;
-  const MAX_MISS=3; // si 3 chunks manquants d'affilée, on s'arrête
-
-  // Si on connaît le nombre exact via manifest, on va directement jusqu'à là
-  const hardLimit=knownChunks>0?knownChunks+10:9999;
-
-  while(chunkIdx<hardLimit && missCount<MAX_MISS){
-    // Charger PARALLEL_CHUNKS chunks en parallèle
-    const batch=[];
-    for(let i=0;i<PARALLEL_CHUNKS&&chunkIdx+i<hardLimit;i++){
-      batch.push(
-        getDoc(doc(db,'securedb','profiles_'+(chunkIdx+i))).catch(()=>null)
-      );
-    }
-    const snaps=await Promise.all(batch);
-    let batchAdded=0;
-    let anyExists=false;
-    snaps.forEach(s=>{
-      if(!s||!s.exists()) return;
-      anyExists=true;
-      (s.data().list||[]).forEach(p=>{
-        const k=String(p.id);
-        if(!seen.has(k)){seen.add(k);allProfiles.push(p);batchAdded++;totalAdded++;}
-      });
-    });
-
-    if(!anyExists) missCount++;
-    else missCount=0;
-
-    chunkIdx+=PARALLEL_CHUNKS;
-
-    if(batchAdded>0){
-      // Mettre à jour l'UI de façon non-bloquante
-      await scheduleUIUpdate(seen.size);
-    }
-
-    // Laisser respirer le navigateur entre chaque vague
-    await sleep(10);
-  }
-
-  // ── PHASE B: Charger l'inbox (anciens posts groupés) ──
-  try{
-    const inboxSnap=await getDoc(doc(db,'securedb','inbox')).catch(()=>null);
-    if(inboxSnap&&inboxSnap.exists()){
-      let added=0;
-      (inboxSnap.data().list||[]).forEach(p=>{
-        const k=String(p.id);
-        if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}
-      });
-      if(added>0) await scheduleUIUpdate(seen.size);
-    }
-  }catch(e){console.warn('inbox',e);}
-
-  // ── PHASE C: Charger la collection "posts" avec PAGINATION (startAfter)
-  // getDocs sans pagination ne retourne que ~300 docs, il faut paginer
-  try{
-    setLoadingText('Loading posts collection...');
-    const {limit,startAfter,query:fsQuery,orderBy:fsOrderBy}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const colRef=collection(db,'posts');
-    const PAGE=500; // 500 docs par page
-    let lastDoc=null;
-    let pageAdded=1;
-    while(pageAdded>0){
-      let q=lastDoc
-        ? fsQuery(colRef,fsOrderBy('id'),startAfter(lastDoc),limit(PAGE))
-        : fsQuery(colRef,fsOrderBy('id'),limit(PAGE));
-      const snap=await getDocs(q);
-      pageAdded=0;
-      snap.docs.forEach(d=>{
-        const p=d.data();
-        const k=String(p.id);
-        if(!seen.has(k)){seen.add(k);allProfiles.push(p);pageAdded++;totalAdded++;}
-      });
-      if(snap.docs.length>0) lastDoc=snap.docs[snap.docs.length-1];
-      if(snap.docs.length<PAGE) break; // derniere page
-      if(pageAdded>0) await scheduleUIUpdate(seen.size);
-      await sleep(20);
-    }
-    if(pageAdded>0) await scheduleUIUpdate(seen.size);
-  }catch(e){console.error('posts collection',e);}
-
-  // ── FIN ──
-  _bgLoadCompleted=true;
-  _bgLoadActive=false;
-  showBgLoadIndicator(false);
-  updateStatCount(true);
-  // Dernier rendu final
-  shuffledProfiles=getSessionShuffle([...allProfiles]);
-  const q=(document.getElementById('app-search')?.value||'').trim();
-  renderCategories(shuffledProfiles);
-  if(!q&&!activeCategory) renderProfiles();
-}
-
-// Mise à jour UI non-bloquante
-let _uiUpdatePending=false;
-async function scheduleUIUpdate(count){
-  if(_uiUpdatePending) return;
-  _uiUpdatePending=true;
-  await sleep(0); // libère le thread
-  _uiUpdatePending=false;
-  shuffledProfiles=getSessionShuffle([...allProfiles]);
-  updateStatCount(false);
-  setLoadingText('Loading... '+count.toLocaleString()+' posts');
-  const bgEl=document.getElementById('bg-load-text');
-  if(bgEl) bgEl.textContent=count.toLocaleString()+' posts loaded...';
-  // Ne re-render la grille que si on est sur browse ET qu'il y a peu de posts rendus
-  const q=(document.getElementById('app-search')?.value||'').trim();
-  if(!q&&!activeCategory&&_renderedCount<PAGE_SIZE*2){
-    renderCategories(shuffledProfiles);
-    renderProfiles();
-  } else {
-    renderCategories(shuffledProfiles);
-    // Update seulement le compteur
-    const sub=document.getElementById('profile-count-label');
-    if(sub) sub.textContent=allProfiles.length.toLocaleString()+' posts (loading more...)';
-  }
-}
-
-function showBgLoadIndicator(show){
-  const el=document.getElementById('bg-load-indicator');
-  if(!el) return;
-  el.style.display=show?'flex':'none';
-}
-function setLoadingText(txt){
-  const el=document.getElementById('loading-text');
-  if(el) el.textContent=txt;
-  const cnt=document.getElementById('loading-count');
-  if(cnt) cnt.textContent=allProfiles.length?allProfiles.length.toLocaleString()+' posts loaded...':'';
-}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-
-function updateStatCount(done){
-  const sc=document.getElementById('stat-count');
-  if(sc) sc.textContent=allProfiles.length.toLocaleString()+(done?'':'...');
-}
-
 function isNewPost(p){return Date.now()-new Date(p.createdAt).getTime()<86400000;}
 function getBannerStyle(bannerId){const obj=BANNERS.find(b=>b.id===bannerId);return obj?obj.style:null;}
+function updateStatCount(done){const sc=document.getElementById('stat-count');if(sc) sc.textContent=allProfiles.length.toLocaleString()+(done?'':'...');}
+function showBgLoadIndicator(show){const el=document.getElementById('bg-load-indicator');if(!el) return;el.style.display=show?'flex':'none';}
+function setLoadingText(txt){const el=document.getElementById('loading-text');if(el) el.textContent=txt;const cnt=document.getElementById('loading-count');if(cnt&&allProfiles.length>0) cnt.textContent=allProfiles.length.toLocaleString()+' posts loaded...';}
+
+let _bgLoadActive=false,_bgLoadCompleted=false;
+let _uiUpdatePending=false;
+async function scheduleUIUpdate(count){
+  if(_uiUpdatePending) return;_uiUpdatePending=true;
+  await sleep(0);_uiUpdatePending=false;
+  shuffledProfiles=getSessionShuffle([...allProfiles]);
+  updateStatCount(false);
+  const bgEl=document.getElementById('bg-load-text');if(bgEl) bgEl.textContent=count.toLocaleString()+' posts loaded...';
+  const q=(document.getElementById('app-search')?.value||'').trim();
+  if(!q&&!activeCategory&&_renderedCount<PAGE_SIZE*2){renderCategories(shuffledProfiles);renderProfiles();}
+  else{renderCategories(shuffledProfiles);const sub=document.getElementById('profile-count-label');if(sub) sub.textContent=allProfiles.length.toLocaleString()+' posts (loading more...)';}
+}
 
 function buildCard(p,favs){
   const el=document.createElement('div');
@@ -1557,10 +1219,7 @@ function renderProfiles(filter=''){
 }
 
 let _searchTimeout=null;
-function onSearchInput(v){
-  activeCategory='';renderCategories(shuffledProfiles);
-  clearTimeout(_searchTimeout);_searchTimeout=setTimeout(()=>renderProfiles(v),400);
-}
+function onSearchInput(v){activeCategory='';renderCategories(shuffledProfiles);clearTimeout(_searchTimeout);_searchTimeout=setTimeout(()=>renderProfiles(v),400);}
 async function filterProfiles(v){if(!profilesLoaded) await loadAllProfiles();renderCategories(shuffledProfiles);renderProfiles(v);}
 function viewUserPosts(author,e){
   e&&e.stopPropagation();
@@ -1571,9 +1230,6 @@ function viewUserPosts(author,e){
   const grid=document.getElementById('profiles-grid');grid.innerHTML='';appendNextPage(grid,getFavorites());
 }
 
-/* ═══════════════════════════════════════════════════════
-   MODALS
-═══════════════════════════════════════════════════════ */
 function modalActionBar(p){
   const isFav=getFavorites().includes(String(p.id));const views=(_cachedStats['v_'+p.id]||0)+1;
   return `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
@@ -1587,7 +1243,7 @@ function modalActionBar(p){
 function promptBanUser(u){const r=prompt(`Ban reason for @${u}:`);if(r===null) return;banUser(u,r||'Banned by moderator.');}
 
 async function openModal(p){
-  const und=`<span class="modal-field-value undef">${undefinedLabel}</span>`;
+  const und=`<span class="modal-field-value undef">Undefined by user</span>`;
   const val=v=>v?`<div class="modal-field-value">${esc(String(v))}</div>`:und;
   const av=p.emoji?`<span>${p.emoji}</span>`:`<span>${(p.name||'?').slice(0,2).toUpperCase()}</span>`;
   const avc=p.emoji?'modal-avatar':'modal-avatar initials';
@@ -1638,10 +1294,7 @@ async function openFileModal(p){
   window._currentFilePost=p;
   const ext=p.fileExt||'.txt';const icons={'.txt':'📝','.json':'🗂️','.html':'🌐'};const icon=icons[ext]||'📄';
   const date=new Date(p.createdAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-  const canRead=!p.fileAccess||p.fileAccess==='free'||isAdmin()||
-    (p.fileAccess==='premium'&&isPremium())||
-    (p.fileAccess==='points'&&(_userData.points||0)>=(p.pointsCost||0))||
-    !p.fileAccess;
+  const canRead=!p.fileAccess||p.fileAccess==='free'||isAdmin()||(p.fileAccess==='premium'&&isPremium())||(p.fileAccess==='points'&&((_userData.points||0)>=(p.pointsCost||0)||!!_userData['unlocked_'+p.id]));
   const accessBadge=p.fileAccess==='premium'?'<span class="file-type-badge badge-premium">👑 Premium Only</span>':p.fileAccess==='points'?`<span class="file-type-badge badge-points">🪙 ${p.pointsCost||10} Points</span>`:'<span class="file-type-badge badge-free">🟢 Free</span>';
   let renderedTab='';if(ext==='.html'&&canRead) renderedTab=`<button class="file-modal-tab" id="ftab-rendered" onclick="switchFileTab('rendered')">Preview</button>`;
   document.getElementById('modal-content').innerHTML=`
@@ -1650,8 +1303,8 @@ async function openFileModal(p){
       <div class="modal-banner"><div class="modal-banner-default"></div></div>
       <div class="modal-header-inner" style="padding:0 28px">
         <div class="modal-avatar-wrap"><div class="modal-avatar" style="font-size:28px">${icon}</div></div>
-        <div class="modal-name">${esc(p.title)}</div>
-        <div class="modal-joined">${esc(p.fileName)} · ${date} ${accessBadge}</div>
+        <div class="modal-name">${esc(p.title||'Untitled')}</div>
+        <div class="modal-joined">${esc(p.fileName||'')} · ${date} ${accessBadge}</div>
         ${modalActionBar(p)}
         <div id="reactions-bar" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"></div>
       </div>
@@ -1660,10 +1313,10 @@ async function openFileModal(p){
       ${canRead?`
         <div class="file-modal-content">
           <div class="file-modal-tabs"><button class="file-modal-tab active" id="ftab-code" onclick="switchFileTab('code')">Code</button>${renderedTab}</div>
-          <div class="file-modal-toolbar"><span class="file-modal-filename">${esc(p.fileName)}</span><span class="file-modal-type">${ext.replace('.','')}</span><button class="file-dl-btn" onclick="downloadCurrentFile()">⬇ Download</button></div>
+          <div class="file-modal-toolbar"><span class="file-modal-filename">${esc(p.fileName||'')}</span><span class="file-modal-type">${ext.replace('.','')}</span><button class="file-dl-btn" onclick="downloadCurrentFile()">⬇ Download</button></div>
           <div id="fview-code" class="file-modal-code">${esc(p.fileContent||'')}</div>
           ${ext==='.html'?`<div id="fview-rendered" class="file-modal-rendered" style="display:none"></div>`:''}
-        </div>` : buildLockedContent(p)}
+        </div>`:buildLockedContent(p)}
       <div class="modal-section" style="margin-top:20px"><div class="modal-section-label">💬 COMMENTS</div>
         <div id="comments-list" style="max-height:180px;overflow-y:auto;margin-bottom:10px"></div>
         <div style="display:flex;gap:8px">
@@ -1684,7 +1337,7 @@ function buildLockedContent(p){
   } else {
     const cost=p.pointsCost||10;const pts=_userData.points||0;
     return `<div class="file-locked-overlay"><span class="locked-icon">🪙</span><div class="locked-title" style="color:#d4b800">POINTS ONLY</div><div class="locked-sub">This file costs <strong style="color:#d4b800">${cost} SD Points</strong> to unlock.<br>Your balance: <strong style="color:${pts>=cost?'#5adb5a':'#e05555'}">${pts} pts</strong></div>
-      ${pts>=cost?`<button class="locked-btn" onclick="unlockWithPoints('${p.id}',${cost})" style="background:linear-gradient(135deg,#2a2a00,#1a1a00);border:1px solid #5a5a00;color:#d4b800">🪙 Unlock for ${cost} pts</button>`:`<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="locked-btn" onclick="closeModal();switchTab('shop')" style="background:#1a1a00;border:1px solid #4a4a00;color:#d4b800">🪙 Get More Points</button></div>`}
+      ${pts>=cost?`<button class="locked-btn" onclick="unlockWithPoints('${p.id}',${cost})" style="background:linear-gradient(135deg,#2a2a00,#1a1a00);border:1px solid #5a5a00;color:#d4b800">🪙 Unlock for ${cost} pts</button>`:`<button class="locked-btn" onclick="closeModal();switchTab('shop')" style="background:#1a1a00;border:1px solid #4a4a00;color:#d4b800">🪙 Get More Points</button>`}
     </div>`;
   }
 }
@@ -1707,9 +1360,6 @@ function switchFileTab(tab){
 function closeModal(){document.getElementById('modal').style.display='none';document.body.style.overflow='';}
 function closeModalOutside(e){if(e.target.id==='modal') closeModal();}
 
-/* ═══════════════════════════════════════════════════════
-   SUBMIT PROFILE
-═══════════════════════════════════════════════════════ */
 async function submitProfile(){
   const name=document.getElementById('f-name').value.trim();
   if(!name){showToast('Please enter at least your name.');return;}
@@ -1726,13 +1376,7 @@ async function submitProfile(){
     mbti:document.getElementById('f-mbti').value,languages:document.getElementById('f-lang').value.trim(),
     quote:document.getElementById('f-quote').value.trim()};
   allProfiles=[p,...allProfiles];shuffledProfiles=[p,...shuffledProfiles];
-  // Sauvegarder en Firestore — attend le résultat et affiche l'erreur si ça échoue
-  try{
-    await savePostFS(p);
-  }catch(e){
-    console.error('[submitProfile] savePostFS failed:',e);
-    showToast('⚠️ Sauvegarde échouée: '+e.message);
-  }
+  savePostFS(p).catch(e=>console.error('append',e));
   addPoints(5);
   btn.classList.add('success');btn.textContent='✓ Published! +5pts';showToast('Profile published! +5 SD Points 🪙');
   setTimeout(()=>{
@@ -1743,9 +1387,6 @@ async function submitProfile(){
   },1800);
 }
 
-/* ═══════════════════════════════════════════════════════
-   FILE UPLOAD
-═══════════════════════════════════════════════════════ */
 let currentFile=null,currentFileContent='';
 const ALLOWED_EXT=['.txt','.json','.html'];
 document.addEventListener('DOMContentLoaded',()=>{
@@ -1775,21 +1416,12 @@ async function submitFile(){
     isPremiumUser:isPremium(),title,fileName:currentFile.name,fileExt:ext,fileContent:currentFileContent,
     fileAccess:access,pointsCost};
   allProfiles=[post,...allProfiles];shuffledProfiles=[post,...shuffledProfiles];
-  // Sauvegarder en Firestore — attend le résultat et affiche l'erreur si ça échoue
-  try{
-    await savePostFS(post);
-  }catch(e){
-    console.error('[submitFile] savePostFS failed:',e);
-    showToast('⚠️ Sauvegarde échouée: '+e.message);
-  }
+  savePostFS(post).catch(e=>console.error('append',e));
   addPoints(8);
   btn.classList.add('success');btn.textContent='✓ Published! +8pts';showToast('File published! +8 SD Points 🪙');
   setTimeout(()=>{btn.classList.remove('success');btn.disabled=false;btn.textContent='PUBLISH FILE';document.getElementById('f-file-title').value='';clearFile();document.getElementById('f-file-access').value='free';document.getElementById('points-cost-field').style.display='none';switchTab('browse');},1800);
 }
 
-/* ═══════════════════════════════════════════════════════
-   AUTO-UPLOAD
-═══════════════════════════════════════════════════════ */
 let autoFile=null,autoFileContent='';
 function autoFileSelected(input){const f=input.files[0];if(f) processAutoFile(f);}
 function autoFileDrop(e){e.preventDefault();document.getElementById('auto-drop-zone')?.classList.remove('drag');const f=e.dataTransfer.files[0];if(f) processAutoFile(f);}
@@ -1801,55 +1433,281 @@ function processAutoFile(file){
     document.getElementById('auto-preview-icon').textContent=icons[ext]||'📄';document.getElementById('auto-preview-name-text').textContent=file.name;document.getElementById('auto-preview-size').textContent=(file.size/1024).toFixed(1)+' KB';document.getElementById('auto-file-preview').style.display='block';};
   reader.readAsText(file);
 }
+
+async function loadAllProfiles(){
+  if(profilesLoaded) return;
+  const grid=document.getElementById('profiles-grid');
+  grid.innerHTML='<div class="spinner"></div>';
+  loadStats().catch(()=>{});
+  try{
+    const {db,doc,getDoc}=await getDB();
+    const seen=new Set();
+    const firstSnaps=await Promise.all([
+      getDoc(doc(db,'securedb','profiles_0')).catch(()=>null),
+      getDoc(doc(db,'securedb','profiles_1')).catch(()=>null),
+      getDoc(doc(db,'securedb','profiles_2')).catch(()=>null),
+    ]);
+    firstSnaps.forEach(s=>{if(!s||!s.exists()) return;(s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);}});});
+    shuffledProfiles=getSessionShuffle([...allProfiles]);
+    profilesLoaded=true;
+    updateStatCount(false);
+    renderCategories(shuffledProfiles);
+    renderProfiles();
+    if(!_bgLoadActive){_bgLoadActive=true;_startFullBackgroundLoad(db,doc,getDoc,seen);}
+  }catch(e){console.error('loadAllProfiles',e);profilesLoaded=true;renderProfiles();}
+}
+
+async function _startFullBackgroundLoad(db,doc,getDoc,seen){
+  showBgLoadIndicator(true);
+  const {collection,getDocs,query,orderBy,getDoc:gd2}=await getDB();
+
+  // Lire manifest
+  let totalChunks=0;
+  try{const ms=await getDoc(doc(db,'securedb','profiles_manifest'));if(ms.exists()) totalChunks=ms.data().chunks||0;}catch{}
+
+  const PARALLEL=20;
+  let chunkIdx=3;
+  let missCount=0;
+  const hardLimit=Math.max(totalChunks+10,9999);
+
+  while(chunkIdx<hardLimit&&missCount<3){
+    const batch=[];
+    for(let i=0;i<PARALLEL&&chunkIdx+i<hardLimit;i++){
+      batch.push(getDoc(doc(db,'securedb','profiles_'+(chunkIdx+i))).catch(()=>null));
+    }
+    const snaps=await Promise.all(batch);
+    let anyExists=false,added=0;
+    snaps.forEach(s=>{if(!s||!s.exists()) return;anyExists=true;(s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});});
+    if(!anyExists) missCount++;else{missCount=0;}
+    chunkIdx+=PARALLEL;
+    if(added>0) await scheduleUIUpdate(seen.size);
+    await sleep(10);
+  }
+
+  // Inbox
+  try{const s=await getDoc(doc(db,'securedb','inbox')).catch(()=>null);if(s&&s.exists()){let a=0;(s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);a++;}});if(a>0) await scheduleUIUpdate(seen.size);}}catch{}
+
+  // Collection posts
+  try{
+    const snap=await getDocs(collection(db,'posts'));
+    let added=0;
+    snap.docs.forEach(d=>{const p=d.data();const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});
+    if(added>0) await scheduleUIUpdate(seen.size);
+  }catch(e){console.error('posts collection',e);}
+
+  _bgLoadCompleted=true;_bgLoadActive=false;
+  showBgLoadIndicator(false);
+  updateStatCount(true);
+  shuffledProfiles=getSessionShuffle([...allProfiles]);
+  const q=(document.getElementById('app-search')?.value||'').trim();
+  renderCategories(shuffledProfiles);
+  if(!q&&!activeCategory) renderProfiles();
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   DB LAYER — ÉCRITURE
+   Essaie d'abord "posts" (1 doc/post), fallback sur
+   securedb/profiles_N (chunks) si les règles bloquent.
+═══════════════════════════════════════════════════════ */
+
+// Test une seule fois si l'écriture dans "posts" est autorisée
+let _canWritePosts=null;
+async function canWriteToPosts(){
+  if(_canWritePosts!==null) return _canWritePosts;
+  try{
+    const {db,collection,doc,setDoc,deleteDoc}=await getDB();
+    const testId='__wt_'+Date.now();
+    await setDoc(doc(collection(db,'posts'),testId),{_test:true});
+    // essaie de supprimer le doc de test (peut échouer si pas le droit, c'est ok)
+    deleteDoc(doc(collection(db,'posts'),testId)).catch(()=>{});
+    _canWritePosts=true;
+    console.log('[DB] posts collection: WRITABLE');
+  }catch(e){
+    console.warn('[DB] posts collection not writable:',e.code,'->fallback to legacy chunks');
+    _canWritePosts=false;
+  }
+  return _canWritePosts;
+}
+
+// Fallback: ajoute dans les chunks securedb/profiles_N
+async function appendToLegacyChunks(newPosts, onProgress){
+  const {db,doc,getDoc,setDoc}=await getDB();
+
+  // Lire le manifest pour connaître le dernier chunk
+  let nextChunk=0;
+  let manifestTotal=0;
+  try{
+    const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
+    if(ms.exists()){nextChunk=ms.data().chunks||0;manifestTotal=ms.data().total||0;}
+  }catch{}
+
+  const POSTS_PER_CHUNK=50;
+  const total=newPosts.length;
+  let done=0;
+
+  // Écrire chunk par chunk séquentiellement
+  for(let i=0;i<total;i+=POSTS_PER_CHUNK){
+    const slice=newPosts.slice(i,i+POSTS_PER_CHUNK);
+    await setDoc(doc(db,'securedb','profiles_'+nextChunk),{list:slice});
+    nextChunk++;
+    done+=slice.length;
+    if(onProgress) onProgress(done,total);
+    // Pause toutes les 20 chunks pour ne pas saturer Firestore
+    if(nextChunk%20===0) await new Promise(r=>setTimeout(r,100));
+  }
+
+  // Mettre à jour le manifest
+  await setDoc(doc(db,'securedb','profiles_manifest'),{
+    chunks:nextChunk,
+    total:manifestTotal+total,
+    updatedAt:new Date().toISOString()
+  });
+}
+
+async function savePostFS(post){
+  try{
+    const ok=await canWriteToPosts();
+    if(ok){
+      const {db,collection,doc,setDoc}=await getDB();
+      await setDoc(doc(collection(db,'posts'),String(post.id)),post);
+    } else {
+      await appendToLegacyChunks([post]);
+    }
+  }catch(e){
+    console.error('[savePostFS] error:',e);
+    // dernier recours: legacy
+    await appendToLegacyChunks([post]);
+  }
+}
+async function savePostsBatchFS(posts, onProgress){
+  const {db,doc,setDoc,getDoc}=await getDB();
+
+  // Lire manifest pour trouver le prochain slot libre
+  let startChunk=0, oldTotal=0;
+  try{
+    const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
+    if(ms.exists()){startChunk=ms.data().chunks||0;oldTotal=ms.data().total||0;}
+  }catch{}
+
+  // Vérifier que startChunk est bien libre (max 5 probes)
+  for(let p=startChunk;p<startChunk+5;p++){
+    try{
+      const s=await getDoc(doc(db,'securedb','profiles_'+p));
+      if(!s.exists()){startChunk=p;break;}
+    }catch{startChunk=p;break;}
+  }
+
+  const CHUNK_SIZE=40; // 40 posts/chunk ~400KB max
+  const PARALLEL=6;   // 6 écritures simultanées
+  const total=posts.length;
+  let done=0;
+  let chunkIdx=startChunk;
+
+  // Découper en chunks
+  const chunks=[];
+  for(let i=0;i<posts.length;i+=CHUNK_SIZE){
+    chunks.push({idx:chunkIdx++, data:posts.slice(i,i+CHUNK_SIZE)});
+  }
+  const finalChunk=chunkIdx;
+
+  // Écrire par vagues de PARALLEL
+  for(let i=0;i<chunks.length;i+=PARALLEL){
+    const wave=chunks.slice(i,i+PARALLEL);
+    await Promise.all(wave.map(async ({idx,data})=>{
+      try{
+        await setDoc(doc(db,'securedb','profiles_'+idx),{list:data});
+      }catch(e){
+        if(String(e.message).includes('size')||String(e.message).includes('exceeds')){
+          // Chunk trop lourd: split en 2
+          const h=Math.ceil(data.length/2);
+          await Promise.all([
+            setDoc(doc(db,'securedb','profiles_'+idx),{list:data.slice(0,h)}),
+            setDoc(doc(db,'securedb','profiles_'+(idx+100000+Math.floor(Math.random()*9999))),{list:data.slice(h)})
+          ]);
+        }
+        // autres erreurs silencieuses (les posts sont déjà dans l'UI)
+      }
+    }));
+    done+=wave.reduce((s,c)=>s+c.data.length,0);
+    if(onProgress) onProgress(Math.min(done,total),total);
+    await sleep(20); // 20ms entre vagues = rapide
+  }
+
+  // Mettre à jour le manifest
+  try{
+    await setDoc(doc(db,'securedb','profiles_manifest'),{
+      chunks:finalChunk, total:oldTotal+total,
+      updatedAt:new Date().toISOString()
+    });
+  }catch(e){console.warn('manifest',e);}
+}
+
 async function submitAutoUpload(){
   const name=document.getElementById('f-auto-name').value.trim();
   const linesPerPost=parseInt(document.getElementById('f-auto-lines').value)||2;
   if(!name){showToast('Please enter an Auto Post Name.');return;}
   if(!autoFile){showToast('Please select a file.');return;}
-  const btn=document.getElementById('submit-auto-btn');btn.disabled=true;
-  const access=document.getElementById('f-auto-access').value;
+
+  const btn=document.getElementById('submit-auto-btn');
   const progress=document.getElementById('auto-progress');
   const fill=document.getElementById('auto-progress-fill');
   const label=document.getElementById('auto-progress-label');
-  progress.style.display='block';fill.style.width='2%';
-  label.textContent='Preparing posts...';
 
-  const rawChunks=[];
-  const allLines=autoFileContent.split('\n');
-  for(let i=0;i<allLines.length;i+=linesPerPost){
-    const c=allLines.slice(i,i+linesPerPost).join('\n').trim();
-    if(c) rawChunks.push(c);
-  }
-  if(!rawChunks.length){showToast('File is empty!');btn.disabled=false;progress.style.display='none';return;}
+  btn.disabled=true;
+  progress.style.display='block';
+  fill.style.width='1%';
+  label.textContent='Reading file...';
 
+  const access=document.getElementById('f-auto-access').value;
   const ext='.'+autoFile.name.split('.').pop().toLowerCase();
-  const baseTime=Date.now();
   const postedBy=currentUser?(_userData.displayName||currentUser.email.split('@')[0]):'Anonyme';
-  const newPosts=rawChunks.map((c,i)=>({
-    id:baseTime+i,createdAt:new Date(baseTime+i).toISOString(),
-    type:'file',postedBy,isPremiumUser:isPremium(),
-    title:name+' '+(i+1),fileName:name+'_'+(i+1)+ext,
-    fileExt:ext,fileContent:c,fileAccess:access,pointsCost:0
-  }));
+  const baseTime=Date.now();
 
-  // Afficher immédiatement dans l'UI
-  allProfiles=[...newPosts,...allProfiles];
-  shuffledProfiles=[...newPosts,...shuffledProfiles];
+  // Découper le fichier en posts SANS tout mettre en mémoire d'un coup
+  // On traite ligne par ligne de façon lazy
+  const allLines=autoFileContent.split('
+');
+  const newPosts=[];
+  let postIdx=0;
+
+  for(let i=0;i<allLines.length;i+=linesPerPost){
+    const c=allLines.slice(i,i+linesPerPost).join('
+').trim();
+    if(!c) continue;
+    newPosts.push({
+      id:baseTime+postIdx,
+      createdAt:new Date(baseTime+postIdx).toISOString(),
+      type:'file',postedBy,isPremiumUser:isPremium(),
+      title:name+' '+(postIdx+1),
+      fileName:name+'_'+(postIdx+1)+ext,
+      fileExt:ext,fileContent:c,fileAccess:access,pointsCost:0
+    });
+    postIdx++;
+  }
+
+  if(!newPosts.length){showToast('File is empty!');btn.disabled=false;progress.style.display='none';return;}
+
+  label.textContent='0 / '+newPosts.length.toLocaleString()+' posts saved...';
+  fill.style.width='2%';
+
+  // Ajouter dans l'UI seulement les 50 premiers pour pas freeze le DOM
+  const uiPreview=newPosts.slice(0,50);
+  allProfiles=[...uiPreview,...allProfiles];
+  shuffledProfiles=[...uiPreview,...shuffledProfiles];
   profilesLoaded=true;
 
-  label.textContent='0 / '+newPosts.length+' posts saved...';
-  fill.style.width='3%';
-
   try{
-    let lastPct=3;
     await savePostsBatchFS(newPosts,(done,total)=>{
-      const pct=3+Math.floor((done/total)*94);
-      if(pct>lastPct){
-        lastPct=pct;
-        fill.style.width=pct+'%';
-        label.textContent=done.toLocaleString()+' / '+total.toLocaleString()+' posts saved...';
-      }
+      const pct=2+Math.floor((done/total)*95);
+      fill.style.width=pct+'%';
+      label.textContent=done.toLocaleString()+' / '+total.toLocaleString()+' posts saved...';
     });
+
+    // Ajouter le reste dans l'UI maintenant que c'est sauvé
+    const rest=newPosts.slice(50);
+    allProfiles=[...rest,...allProfiles];
+    shuffledProfiles=[...rest,...shuffledProfiles];
 
     fill.style.width='100%';
     label.textContent='✓ '+newPosts.length.toLocaleString()+' posts saved!';
@@ -1857,10 +1715,11 @@ async function submitAutoUpload(){
     btn.classList.add('success');
     btn.textContent='✓ Done! '+newPosts.length.toLocaleString()+' posts';
     showToast(newPosts.length.toLocaleString()+' posts saved! 🎉');
+
   }catch(e){
     console.error('auto-upload:',e);
     label.textContent='❌ Error: '+e.message;
-    btn.textContent='Error — retry?';
+    btn.textContent='Retry?';
     btn.disabled=false;
     showToast('Error: '+e.message);
     return;
