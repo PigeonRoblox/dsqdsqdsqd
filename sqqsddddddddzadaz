@@ -1818,18 +1818,65 @@ async function checkKey(){
   const btn=document.getElementById('key-btn');const err=document.getElementById('key-error');
   if(!input){err.textContent='Please enter a key.';return;}
   btn.disabled=true;btn.textContent='CHECKING...';err.textContent='';
+
+  // Essayer plusieurs méthodes pour récupérer les clés (CORS peut bloquer fetch direct)
+  let validKeys=[];
+  let fetchOk=false;
+
+  // Méthode 1: fetch direct
   try{
-    const r=await fetch(KEYS_URL+'?nocache='+Date.now());
-    const text=await r.text();
-    const validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
-    if(validKeys.includes(input)){
-      sessionStorage.setItem('sdb-auth','1');
-      showLoadingScreen();
-    } else {
-      err.textContent='Invalid key. Access denied.';btn.disabled=false;btn.textContent='ENTER';
+    const r=await fetch(KEYS_URL+'?nocache='+Date.now(),{cache:'no-store'});
+    if(r.ok){
+      const text=await r.text();
+      validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
+      fetchOk=true;
     }
-  }catch(e){
-    err.textContent='Connection error. Try again.';btn.disabled=false;btn.textContent='ENTER';
+  }catch(e){console.warn('fetch direct failed:',e.message);}
+
+  // Méthode 2: proxy CORS si la méthode 1 a échoué
+  if(!fetchOk){
+    try{
+      const proxy='https://api.allorigins.win/raw?url='+encodeURIComponent(KEYS_URL+'?nocache='+Date.now());
+      const r=await fetch(proxy);
+      if(r.ok){
+        const text=await r.text();
+        validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
+        fetchOk=true;
+      }
+    }catch(e){console.warn('proxy fetch failed:',e.message);}
+  }
+
+  // Méthode 3: deuxième proxy si tout a échoué
+  if(!fetchOk){
+    try{
+      const proxy2='https://corsproxy.io/?'+encodeURIComponent(KEYS_URL);
+      const r=await fetch(proxy2);
+      if(r.ok){
+        const text=await r.text();
+        validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
+        fetchOk=true;
+      }
+    }catch(e){console.warn('proxy2 failed:',e.message);}
+  }
+
+  if(!fetchOk){
+    err.textContent='Cannot reach key server. Check your connection.';
+    btn.disabled=false;btn.textContent='ENTER';
+    return;
+  }
+
+  if(validKeys.length===0){
+    err.textContent='Key list is empty. Contact admin on Discord.';
+    btn.disabled=false;btn.textContent='ENTER';
+    return;
+  }
+
+  if(validKeys.includes(input)){
+    sessionStorage.setItem('sdb-auth','1');
+    showLoadingScreen();
+  } else {
+    err.textContent='Invalid key. Access denied.';
+    btn.disabled=false;btn.textContent='ENTER';
   }
 }
 
