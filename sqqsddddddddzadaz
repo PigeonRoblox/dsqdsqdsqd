@@ -699,7 +699,7 @@ const ADMINN_EMAIL='1l6q@protonmail.com';
 const KEYS_URL='https://raw.githubusercontent.com/PigeonRoblox/Somegdfqsdq/refs/heads/main/ssdqsqddsq';
 const CHUNK_SIZE=50;
 const PAGE_SIZE=20;
-const PARALLEL_CHUNKS=20;
+const PARALLEL_CHUNKS=50; // ← AUGMENTÉ de 20 à 50
 const PAYPAL_PREMIUM_LINK='https://www.paypal.com/paypalme/AntoinneDuPont/1EUR';
 const PAYPAL_POINTS_LINKS={
   100:'https://www.paypal.com/paypalme/AntoinneDuPont/1EUR',
@@ -1389,21 +1389,14 @@ const ALLOWED_EXT=['.txt','.json','.html'];
 
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('f-file-access')?.addEventListener('change',function(){document.getElementById('points-cost-field').style.display=this.value==='points'?'block':'none';});
-  // FIX: Initialise la keygate correctement selon session
   _initKeyGate();
 });
 
-/* ═══════════════════════════════════════════════════════
-   FIX #1: INIT KEYGATE — logique centralisée ici
-═══════════════════════════════════════════════════════ */
 function _initKeyGate(){
   if(sessionStorage.getItem('sdb-auth')==='1'){
-    // Déjà authentifié: cacher keygate, montrer loading screen
     document.getElementById('keygate').style.display='none';
-    // Lance directement le loading screen + preload
     _runLoadingAndEnter();
   } else {
-    // Pas encore auth: montrer keygate, cacher loading screen
     document.getElementById('loading-screen').style.display='none';
     document.getElementById('keygate').style.display='flex';
   }
@@ -1478,14 +1471,11 @@ async function _startFullBackgroundLoad(db,doc,getDoc,seen){
   showBgLoadIndicator(true);
   const {collection,getDocs,getDoc:gd2}=await getDB();
 
-  // Lire le manifest pour connaître le nombre exact de chunks normaux
   let totalChunks=0;
   try{const ms=await getDoc(doc(db,'securedb','profiles_manifest'));if(ms.exists()) totalChunks=ms.data().chunks||0;}catch{}
 
   const PARALLEL=30;
 
-  // === PHASE 1: Lire tous les chunks normaux (0..totalChunks) via le manifest ===
-  // On ne s'arrête PAS sur missCount — on va jusqu'à totalChunks exact
   if(totalChunks>3){
     let chunkIdx=3;
     while(chunkIdx<totalChunks){
@@ -1502,8 +1492,6 @@ async function _startFullBackgroundLoad(db,doc,getDoc,seen){
     }
   }
 
-  // === PHASE 2: Lire les chunks de débordement (spill: 200000..299999) ===
-  // Ce sont les chunks créés quand un doc était trop gros
   {
     let spillIdx=200000;
     let spillMiss=0;
@@ -1597,7 +1585,6 @@ async function savePostFS(post){
   }
 }
 
-// Cache manifest
 let _manifestCache=null;
 function _invalidateManifest(){_manifestCache=null;}
 async function _getManifest(db,doc,getDoc){
@@ -1610,61 +1597,51 @@ async function _getManifest(db,doc,getDoc){
 }
 
 /* ═══════════════════════════════════════════════════════
-   savePostsBatchFS — MEGA-DOC + PARALLEL
-   
-   Principe: grouper MAX de posts par doc Firestore (<=1MB)
-   puis écrire 3 docs en parallèle.
-   
-   Exemple: 19 000 posts x 1KB = ~19 docs -> 7 vagues de 3 = ~7 writes reseau
+   ✅ PATCH: savePostsBatchFS — PARALLEL_DOCS 3→25, pas de sleep inutile
 ═══════════════════════════════════════════════════════ */
-async function savePostsBatchFS(posts, onProgress){
-  if(onProgress) await Promise.resolve(onProgress(0, posts.length));
+async function savePostsBatchFS(posts,onProgress){
+  if(onProgress) onProgress(0,posts.length);
 
-  const {db, doc, setDoc, getDoc} = await getDB();
-  const manifest = await _getManifest(db, doc, getDoc);
-  let chunkIdx = manifest.chunks;
-  const oldTotal = manifest.total;
-  const total = posts.length;
+  const {db,doc,setDoc,getDoc}=await getDB();
+  const manifest=await _getManifest(db,doc,getDoc);
+  let chunkIdx=manifest.chunks;
+  const oldTotal=manifest.total;
+  const total=posts.length;
 
-  // Taille moyenne sur 10 posts
-  const avgPostBytes = Math.ceil(
-    JSON.stringify(posts.slice(0, Math.min(10, posts.length))).length / Math.min(10, posts.length)
-  );
+  // Taille sur échantillon représentatif (100 posts max)
+  const sample=posts.slice(0,Math.min(100,posts.length));
+  const avgPostBytes=Math.ceil(JSON.stringify(sample).length/sample.length);
 
-  // 850KB par doc (marge de 150KB pour overhead Firestore)
-  const MAX_DOC_BYTES = 850000;
-  const POSTS_PER_DOC = Math.max(10, Math.min(2000, Math.floor(MAX_DOC_BYTES / Math.max(avgPostBytes, 100))));
-  // 3 docs en parallèle = 3x plus rapide sans exploser le quota
-  const PARALLEL_DOCS = 3;
+  const MAX_DOC_BYTES=800000;
+  const POSTS_PER_DOC=Math.max(5,Math.min(5000,Math.floor(MAX_DOC_BYTES/Math.max(avgPostBytes,50))));
+  const PARALLEL_DOCS=25; // ← ÉTAIT 3, maintenant 25
 
-  console.log('[auto-upload] ' + total + ' posts | ' + avgPostBytes + 'B/post | ' + POSTS_PER_DOC + ' posts/doc | ' + Math.ceil(total/POSTS_PER_DOC) + ' docs | parallel=' + PARALLEL_DOCS);
+  console.log('[auto-upload] '+total+' posts | ~'+avgPostBytes+'B/post | '+POSTS_PER_DOC+' posts/doc | '+Math.ceil(total/POSTS_PER_DOC)+' docs | parallel='+PARALLEL_DOCS);
 
-  // Découper en docs
-  const docChunks = [];
-  for(let i = 0; i < posts.length; i += POSTS_PER_DOC){
-    docChunks.push({idx: chunkIdx++, data: posts.slice(i, i + POSTS_PER_DOC)});
+  const docChunks=[];
+  for(let i=0;i<posts.length;i+=POSTS_PER_DOC){
+    docChunks.push({idx:chunkIdx++,data:posts.slice(i,i+POSTS_PER_DOC)});
   }
-  const finalChunk = chunkIdx;
-  let done = 0;
+  const finalChunk=chunkIdx;
+  let done=0;
 
-  async function writeDocWithRetry(idx, data){
-    let slice = data;
-    for(let attempt = 0; attempt < 6; attempt++){
+  async function writeDocWithRetry(idx,data){
+    let slice=data;
+    for(let attempt=0;attempt<6;attempt++){
       try{
-        await setDoc(doc(db, 'securedb', 'profiles_' + idx), {list: slice});
-        return slice.length; // nb posts écrits
+        await setDoc(doc(db,'securedb','profiles_'+idx),{list:slice});
+        return slice.length;
       }catch(e){
-        const msg = String(e.message || e.code || '');
-        if(msg.includes('size') || msg.includes('exceeds') || msg.includes('too large') || msg.includes('document')){
-          // Doc trop lourd: réduire de moitié et réessayer
-          slice = slice.slice(0, Math.ceil(slice.length / 2));
-          console.warn('[chunk ' + idx + '] trop lourd, réduit à ' + slice.length + ' posts');
-        } else if(msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('429')){
-          const wait = 1000 * (attempt + 1);
-          console.warn('[ratelimit] attente ' + wait + 'ms');
+        const msg=String(e.message||e.code||'');
+        if(msg.includes('size')||msg.includes('exceeds')||msg.includes('too large')||msg.includes('document')){
+          slice=slice.slice(0,Math.ceil(slice.length/2));
+          console.warn('[chunk '+idx+'] trop lourd, réduit à '+slice.length+' posts');
+        }else if(msg.includes('RESOURCE_EXHAUSTED')||msg.includes('quota')||msg.includes('429')){
+          const wait=500*Math.pow(2,attempt);
+          console.warn('[ratelimit] attente '+wait+'ms');
           await sleep(wait);
-        } else {
-          console.error('[chunk ' + idx + '] erreur:', msg);
+        }else{
+          console.error('[chunk '+idx+'] erreur:',msg);
           return 0;
         }
       }
@@ -1672,29 +1649,25 @@ async function savePostsBatchFS(posts, onProgress){
     return 0;
   }
 
-  // Écrire par vagues de PARALLEL_DOCS
-  for(let i = 0; i < docChunks.length; i += PARALLEL_DOCS){
-    const wave = docChunks.slice(i, i + PARALLEL_DOCS);
-    const results = await Promise.all(wave.map(({idx, data}) => writeDocWithRetry(idx, data)));
-    done += results.reduce((a, b) => a + b, 0);
-    if(onProgress) await Promise.resolve(onProgress(Math.min(done, total), total));
+  // Vagues de 25 en parallèle — PAS de sleep entre les vagues
+  for(let i=0;i<docChunks.length;i+=PARALLEL_DOCS){
+    const wave=docChunks.slice(i,i+PARALLEL_DOCS);
+    const results=await Promise.all(wave.map(({idx,data})=>writeDocWithRetry(idx,data)));
+    done+=results.reduce((a,b)=>a+b,0);
+    if(onProgress) onProgress(Math.min(done,total),total); // non-bloquant
   }
 
-  // Mettre à jour le manifest
+  // Manifest: UNE seule écriture à la fin
   try{
-    await setDoc(doc(db, 'securedb', 'profiles_manifest'), {
-      chunks: finalChunk,
-      total: oldTotal + total,
-      updatedAt: new Date().toISOString()
+    await setDoc(doc(db,'securedb','profiles_manifest'),{
+      chunks:finalChunk,total:oldTotal+total,updatedAt:new Date().toISOString()
     });
     _invalidateManifest();
-  }catch(e){console.warn('manifest:', e);}
+  }catch(e){console.warn('manifest:',e);}
 }
 
 /* ═══════════════════════════════════════════════════════
-   FIX #2: AUTO-UPLOAD — split lines corrigé
-   Le HTML encode les retours à la ligne, on normalise
-   CR+LF et LF avant de splitter.
+   ✅ PATCH: submitAutoUpload — suppression des sleep(30) inutiles
 ═══════════════════════════════════════════════════════ */
 async function submitAutoUpload(){
   const name=document.getElementById('f-auto-name').value.trim();
@@ -1712,15 +1685,15 @@ async function submitAutoUpload(){
   fill.style.width='2%';
   label.textContent='Preparing posts...';
 
-  // yield au browser pour qu'il affiche le label avant de bloquer le thread
-  await sleep(30);
+  // Un seul yield propre pour laisser le browser peindre
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
 
   const access=document.getElementById('f-auto-access').value;
   const ext='.'+autoFile.name.split('.').pop().toLowerCase();
   const postedBy=currentUser?(_userData.displayName||currentUser.email.split('@')[0]):'Anonyme';
   const baseTime=Date.now();
 
-  // Normaliser les sauts de ligne (CRLF Windows -> LF)
+  // Normaliser CRLF/CR → LF
   const normalizedContent=autoFileContent.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
   const allLines=normalizedContent.split('\n');
 
@@ -1748,7 +1721,6 @@ async function submitAutoUpload(){
 
   label.textContent='0 / '+newPosts.length.toLocaleString()+' posts saved...';
   fill.style.width='3%';
-  await sleep(30); // yield pour afficher
 
   // Ajouter les 50 premiers dans l'UI immédiatement
   const uiPreview=newPosts.slice(0,50);
@@ -1758,8 +1730,6 @@ async function submitAutoUpload(){
 
   _invalidateManifest();
 
-  // Callback de progression — simple et synchrone
-  // Le sleep(0) dans savePostsBatchFS yield le thread pour le repaint
   function onUploadProgress(done,total){
     const pct=3+Math.floor((done/total)*94);
     fill.style.width=pct+'%';
@@ -1772,7 +1742,7 @@ async function submitAutoUpload(){
     uploadOk=true;
   }catch(e){
     console.error('auto-upload error:',e);
-    label.textContent='❌ '+( e.message||e.code||'Unknown error');
+    label.textContent='❌ '+(e.message||e.code||'Unknown error');
     btn.textContent='⚡ RETRY';
     btn.disabled=false;
     showToast('❌ Erreur upload: '+(e.message||e.code||''));
@@ -1780,7 +1750,6 @@ async function submitAutoUpload(){
   }
 
   if(uploadOk){
-    // Ajouter tous les posts dans l'UI
     const rest=newPosts.slice(50);
     allProfiles=[...rest,...allProfiles];
     shuffledProfiles=[...rest,...shuffledProfiles];
@@ -1792,7 +1761,6 @@ async function submitAutoUpload(){
     btn.textContent='✓ '+newPosts.length.toLocaleString()+' posts OK !';
     showToast('🎉 '+newPosts.length.toLocaleString()+' posts sauvegardés !');
 
-    // Redirection vers browse après 2.5s
     setTimeout(()=>{
       btn.classList.remove('success');
       btn.disabled=false;
@@ -1803,7 +1771,7 @@ async function submitAutoUpload(){
       fill.style.width='0%';
       clearAutoFile();
       switchTab('browse');
-    },2500);
+    },1500);
   }
 }
 
@@ -1869,7 +1837,6 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 const cWords=['FRIEND.','BUDDY.','PARTNER.','MATE.'];let cIdx=0;
 setInterval(()=>{const el=document.getElementById('cycle-word');if(!el) return;el.style.opacity='0';el.style.transform='translateY(-10px)';setTimeout(()=>{cIdx=(cIdx+1)%cWords.length;el.textContent=cWords[cIdx];el.style.opacity='1';el.style.transform='translateY(0)';},320);},2800);
 
-// Anti-inspect
 document.addEventListener('contextmenu',e=>e.preventDefault());
 document.addEventListener('keydown',e=>{
   if(e.key==='F12') e.preventDefault();
@@ -1878,11 +1845,6 @@ document.addEventListener('keydown',e=>{
 });
 (function devtoolsCheck(){setInterval(()=>{if(window.outerWidth-window.innerWidth>160||window.outerHeight-window.innerHeight>160){document.body.innerHTML='<div style="background:#0c0c0c;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;color:#444;font-size:14px">ACCESS RESTRICTED</div>';}},1000);})();
 
-/* ═══════════════════════════════════════════════════════
-   FIX #3: KEY GATE + LOADING SCREEN
-   checkKey() -> sessionStorage -> _runLoadingAndEnter()
-   _initKeyGate() gère la logique au chargement initial
-═══════════════════════════════════════════════════════ */
 async function checkKey(){
   const input=document.getElementById('key-input').value.trim();
   const btn=document.getElementById('key-btn');const err=document.getElementById('key-error');
@@ -1894,7 +1856,6 @@ async function checkKey(){
     const validKeys=text.split('\n').map(k=>k.trim()).filter(Boolean);
     if(validKeys.includes(input)){
       sessionStorage.setItem('sdb-auth','1');
-      // Cacher la keygate et lancer le loading
       document.getElementById('keygate').style.display='none';
       _runLoadingAndEnter();
     } else {
@@ -1909,7 +1870,6 @@ async function checkKey(){
   }
 }
 
-/* Lance le loading screen 10s + preload en parallèle, puis entre dans le site */
 function _runLoadingAndEnter(){
   const ls=document.getElementById('loading-screen');
   ls.style.display='flex';
@@ -1917,10 +1877,8 @@ function _runLoadingAndEnter(){
   const totalMs=10000;
   const startTime=Date.now();
 
-  // Lance le préchargement complet en background PENDANT les 10s
   _startPreload().catch(()=>{});
 
-  // Barre de progression basée sur le temps + progression réelle
   const iv=setInterval(()=>{
     const elapsed=Date.now()-startTime;
     const timeProgress=Math.min(elapsed/totalMs,1);
@@ -1934,7 +1892,6 @@ function _runLoadingAndEnter(){
       bar.style.width='100%';
       setTimeout(()=>{
         ls.style.display='none';
-        // Initialise Firebase Auth silencieusement
         getAuth().catch(()=>{});
         loadAnnouncement().catch(()=>{});
       },200);
@@ -1942,7 +1899,6 @@ function _runLoadingAndEnter(){
   },100);
 }
 
-// Précharge tout pendant l'écran de chargement
 async function _startPreload(){
   try{
     setLoadingText('Connecting to database...');
@@ -1964,7 +1920,6 @@ async function _startPreload(){
 
     setLoadingText('Loading '+totalChunks+' chunks...');
 
-    // Charger TOUS les chunks en parallèle (vagues de PARALLEL_CHUNKS)
     let chunkIdx=0;
     let missCount=0;
     const hardLimit=Math.max(totalChunks+10,200);
@@ -1987,7 +1942,6 @@ async function _startPreload(){
       await sleep(5);
     }
 
-    // Inbox
     try{
       const inboxSnap=await getDoc(doc(db,'securedb','inbox')).catch(()=>null);
       if(inboxSnap&&inboxSnap.exists()){
@@ -1995,7 +1949,6 @@ async function _startPreload(){
       }
     }catch{}
 
-    // Collection posts paginée
     try{
       setLoadingText('Loading posts collection...');
       const {limit,startAfter,query:fsQuery,orderBy:fsOrderBy}=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
