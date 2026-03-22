@@ -1476,28 +1476,50 @@ async function loadAllProfiles(){
 
 async function _startFullBackgroundLoad(db,doc,getDoc,seen){
   showBgLoadIndicator(true);
-  const {collection,getDocs,query,orderBy,getDoc:gd2}=await getDB();
+  const {collection,getDocs,getDoc:gd2}=await getDB();
 
+  // Lire le manifest pour connaître le nombre exact de chunks normaux
   let totalChunks=0;
   try{const ms=await getDoc(doc(db,'securedb','profiles_manifest'));if(ms.exists()) totalChunks=ms.data().chunks||0;}catch{}
 
-  const PARALLEL=20;
-  let chunkIdx=3;
-  let missCount=0;
-  const hardLimit=Math.max(totalChunks+10,9999);
+  const PARALLEL=30;
 
-  while(chunkIdx<hardLimit&&missCount<3){
-    const batch=[];
-    for(let i=0;i<PARALLEL&&chunkIdx+i<hardLimit;i++){
-      batch.push(getDoc(doc(db,'securedb','profiles_'+(chunkIdx+i))).catch(()=>null));
+  // === PHASE 1: Lire tous les chunks normaux (0..totalChunks) via le manifest ===
+  // On ne s'arrête PAS sur missCount — on va jusqu'à totalChunks exact
+  if(totalChunks>3){
+    let chunkIdx=3;
+    while(chunkIdx<totalChunks){
+      const batch=[];
+      for(let i=0;i<PARALLEL&&chunkIdx+i<totalChunks;i++){
+        batch.push(getDoc(doc(db,'securedb','profiles_'+(chunkIdx+i))).catch(()=>null));
+      }
+      const snaps=await Promise.all(batch);
+      let added=0;
+      snaps.forEach(s=>{if(!s||!s.exists()) return;(s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});});
+      chunkIdx+=PARALLEL;
+      if(added>0) await scheduleUIUpdate(seen.size);
+      await sleep(5);
     }
-    const snaps=await Promise.all(batch);
-    let anyExists=false,added=0;
-    snaps.forEach(s=>{if(!s||!s.exists()) return;anyExists=true;(s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});});
-    if(!anyExists) missCount++;else{missCount=0;}
-    chunkIdx+=PARALLEL;
-    if(added>0) await scheduleUIUpdate(seen.size);
-    await sleep(10);
+  }
+
+  // === PHASE 2: Lire les chunks de débordement (spill: 200000..299999) ===
+  // Ce sont les chunks créés quand un doc était trop gros
+  {
+    let spillIdx=200000;
+    let spillMiss=0;
+    while(spillMiss<5&&spillIdx<300000){
+      const batch=[];
+      for(let i=0;i<PARALLEL&&spillIdx+i<300000;i++){
+        batch.push(getDoc(doc(db,'securedb','profiles_'+(spillIdx+i))).catch(()=>null));
+      }
+      const snaps=await Promise.all(batch);
+      let anyExists=false,added=0;
+      snaps.forEach(s=>{if(!s||!s.exists()) return;anyExists=true;(s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);added++;}});});
+      if(!anyExists) spillMiss++;else spillMiss=0;
+      spillIdx+=PARALLEL;
+      if(added>0) await scheduleUIUpdate(seen.size);
+      await sleep(5);
+    }
   }
 
   try{const s=await getDoc(doc(db,'securedb','inbox')).catch(()=>null);if(s&&s.exists()){let a=0;(s.data().list||[]).forEach(p=>{const k=String(p.id);if(!seen.has(k)){seen.add(k);allProfiles.push(p);a++;}});if(a>0) await scheduleUIUpdate(seen.size);}}catch{}
@@ -1602,14 +1624,11 @@ async function savePostsBatchFS(posts,onProgress){
   const oldTotal=manifest.total;
   const total=posts.length;
 
-  // Estimer la taille d'un post pour choisir CHUNK_SZ dynamiquement
-  // On sérialise juste le premier pour avoir une idée
-  const sampleSize=JSON.stringify(posts[0]||{}).length;
-  // Firestore limite ~950KB par doc, on vise 700KB max pour sécurité
-  const TARGET_BYTES=700000;
-  // CHUNK_SZ = combien de posts rentrent dans 700KB (min 50, max 1000)
-  const CHUNK_SZ=Math.max(50,Math.min(1000,Math.floor(TARGET_BYTES/Math.max(sampleSize,100))));
-  // PARALLEL = nb de writes simultanés (Firestore gère bien 10-15 en //)
+  // Mesure sur 10 posts pour avoir une taille moyenne fiable
+  const _sample=posts.slice(0,Math.min(10,posts.length));
+  const _avgSize=Math.ceil(JSON.stringify(_sample).length/_sample.length);
+  // Firestore: 1MB/doc. On vise 800KB max pour avoir de la marge.
+  const CHUNK_SZ=Math.max(30,Math.min(500,Math.floor(800000/Math.max(_avgSize,200))));
   const PARALLEL=12;
 
   console.log('[auto-upload] '+total+' posts, chunk='+CHUNK_SZ+', parallel='+PARALLEL+', ~'+Math.ceil(total/CHUNK_SZ)+' chunks');
@@ -1659,10 +1678,8 @@ async function savePostsBatchFS(posts,onProgress){
     }));
 
     done+=wave.reduce((s,c)=>s+c.data.length,0);
-    if(onProgress) onProgress(Math.min(done,total),total);
-    // Pas de sleep ici sauf si RESOURCE_EXHAUSTED (géré dans le retry)
-    // On yield juste le thread pour pas freeze l'UI
-    await sleep(0);
+    // onProgress peut être une Promise (avec rAF) — on l'await pour garantir le repaint
+    if(onProgress) await Promise.resolve(onProgress(Math.min(done,total),total));
   }
 
   // Mettre à jour le manifest
@@ -1739,47 +1756,59 @@ async function submitAutoUpload(){
   shuffledProfiles=[...uiPreview,...shuffledProfiles];
   profilesLoaded=true;
 
-  try{
-    // Invalider le cache manifest avant de commencer
-    _invalidateManifest();
+  _invalidateManifest();
 
-    // Un seul appel savePostsBatchFS pour tous les posts
-    // La fonction gère elle-même les chunks et le rate limiting
-    await savePostsBatchFS(newPosts,(done,total)=>{
+  // Callback de progression — appelé depuis savePostsBatchFS après chaque vague
+  // requestAnimationFrame garantit le repaint visuel avant de continuer
+  function onUploadProgress(done,total){
+    return new Promise(resolve=>{
       const pct=3+Math.floor((done/total)*94);
       fill.style.width=pct+'%';
       label.textContent=done.toLocaleString()+' / '+total.toLocaleString()+' posts saved...';
+      // Force le browser à peindre avant de résoudre
+      requestAnimationFrame(()=>requestAnimationFrame(resolve));
     });
+  }
 
-    // Ajouter le reste dans l'UI
+  let uploadOk=false;
+  try{
+    await savePostsBatchFS(newPosts,onUploadProgress);
+    uploadOk=true;
+  }catch(e){
+    console.error('auto-upload error:',e);
+    label.textContent='❌ '+( e.message||e.code||'Unknown error');
+    btn.textContent='⚡ RETRY';
+    btn.disabled=false;
+    showToast('❌ Erreur upload: '+(e.message||e.code||''));
+    return;
+  }
+
+  if(uploadOk){
+    // Ajouter tous les posts dans l'UI
     const rest=newPosts.slice(50);
     allProfiles=[...rest,...allProfiles];
     shuffledProfiles=[...rest,...shuffledProfiles];
 
     fill.style.width='100%';
-    label.textContent='✓ '+newPosts.length.toLocaleString()+' posts saved!';
+    label.textContent='✓ '+newPosts.length.toLocaleString()+' posts uploadés !';
     addPoints(Math.min(newPosts.length*2,100));
     btn.classList.add('success');
-    btn.textContent='✓ Done! '+newPosts.length.toLocaleString()+' posts';
-    showToast(newPosts.length.toLocaleString()+' posts saved! 🎉');
+    btn.textContent='✓ '+newPosts.length.toLocaleString()+' posts OK !';
+    showToast('🎉 '+newPosts.length.toLocaleString()+' posts sauvegardés !');
 
-  }catch(e){
-    console.error('auto-upload error:',e);
-    label.textContent='❌ Error: '+(e.message||e.code||'Unknown error');
-    btn.textContent='⚡ RETRY';
-    btn.disabled=false;
-    showToast('❌ Error: '+(e.message||e.code||'Unknown error'));
-    return;
+    // Redirection vers browse après 2.5s
+    setTimeout(()=>{
+      btn.classList.remove('success');
+      btn.disabled=false;
+      btn.textContent='START AUTO-UPLOAD';
+      try{document.getElementById('f-auto-name').value='';}catch{}
+      try{document.getElementById('f-auto-lines').value='';}catch{}
+      progress.style.display='none';
+      fill.style.width='0%';
+      clearAutoFile();
+      switchTab('browse');
+    },2500);
   }
-
-  setTimeout(()=>{
-    btn.classList.remove('success');btn.disabled=false;
-    btn.textContent='START AUTO-UPLOAD';
-    document.getElementById('f-auto-name').value='';
-    document.getElementById('f-auto-lines').value='';
-    progress.style.display='none';fill.style.width='0%';
-    clearAutoFile();switchTab('browse');
-  },2500);
 }
 
 /* ═══════════════════════════════════════════════════════
