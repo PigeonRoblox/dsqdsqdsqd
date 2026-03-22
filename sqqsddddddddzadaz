@@ -1575,50 +1575,92 @@ async function savePostFS(post){
   }
 }
 
-async function savePostsBatchFS(posts,onProgress){
-  const {db,doc,setDoc,getDoc}=await getDB();
-  let startChunk=0,oldTotal=0;
+// Cache du manifest pour éviter de le relire à chaque batch
+let _manifestCache=null;
+async function _getManifest(db,doc,getDoc){
+  if(_manifestCache) return _manifestCache;
   try{
     const ms=await getDoc(doc(db,'securedb','profiles_manifest'));
-    if(ms.exists()){startChunk=ms.data().chunks||0;oldTotal=ms.data().total||0;}
-  }catch{}
-  for(let p=startChunk;p<startChunk+5;p++){
-    try{const s=await getDoc(doc(db,'securedb','profiles_'+p));if(!s.exists()){startChunk=p;break;}}catch{startChunk=p;break;}
-  }
-  const CHUNK_SZ=40;
-  const PARALLEL=6;
+    _manifestCache=ms.exists()?{chunks:ms.data().chunks||0,total:ms.data().total||0}:{chunks:0,total:0};
+  }catch{_manifestCache={chunks:0,total:0};}
+  return _manifestCache;
+}
+function _invalidateManifest(){_manifestCache=null;}
+
+async function savePostsBatchFS(posts,onProgress){
+  // Signaler immédiatement qu'on démarre (avant tout appel réseau)
+  if(onProgress) onProgress(0,posts.length);
+
+  const {db,doc,setDoc,getDoc}=await getDB();
+
+  // Lire le manifest une seule fois (caché)
+  const manifest=await _getManifest(db,doc,getDoc);
+  let chunkIdx=manifest.chunks;
+  const oldTotal=manifest.total;
+
+  // CHUNK_SZ petit = moins de risque dépassement taille Firestore (1MB/doc)
+  // Pour des posts avec fileContent court (1-2 lignes) 20 posts ~ 2-5KB max
+  const CHUNK_SZ=20;
+  // PARALLEL=3 pour pas dépasser le quota Firestore (5 writes/s gratuit)
+  const PARALLEL=3;
   const total=posts.length;
   let done=0;
-  let chunkIdx=startChunk;
+
+  // Préparer tous les chunks
   const chunks=[];
   for(let i=0;i<posts.length;i+=CHUNK_SZ){
     chunks.push({idx:chunkIdx++,data:posts.slice(i,i+CHUNK_SZ)});
   }
   const finalChunk=chunkIdx;
+
+  // Écrire par vagues de PARALLEL avec retry sur erreur taille
   for(let i=0;i<chunks.length;i+=PARALLEL){
     const wave=chunks.slice(i,i+PARALLEL);
     await Promise.all(wave.map(async ({idx,data})=>{
-      try{
-        await setDoc(doc(db,'securedb','profiles_'+idx),{list:data});
-      }catch(e){
-        if(String(e.message).includes('size')||String(e.message).includes('exceeds')){
-          const h=Math.ceil(data.length/2);
-          await Promise.all([
-            setDoc(doc(db,'securedb','profiles_'+idx),{list:data.slice(0,h)}),
-            setDoc(doc(db,'securedb','profiles_'+(idx+100000+Math.floor(Math.random()*9999))),{list:data.slice(h)})
-          ]);
+      // Retry loop: si le chunk est trop gros, on le réduit de moitié
+      let slice=data;
+      let attempts=0;
+      while(attempts<4){
+        try{
+          await setDoc(doc(db,'securedb','profiles_'+idx),{list:slice});
+          break; // succès
+        }catch(e){
+          attempts++;
+          const msg=String(e.message||e.code||'');
+          if(msg.includes('size')||msg.includes('exceeds')||msg.includes('RESOURCE_EXHAUSTED')){
+            // Chunk trop grand: couper en deux et écrire le surplus ailleurs
+            const h=Math.ceil(slice.length/2);
+            const overflow=slice.slice(h);
+            slice=slice.slice(0,h);
+            if(overflow.length){
+              const overflowIdx=finalChunk+100000+Math.floor(Math.random()*99999);
+              try{await setDoc(doc(db,'securedb','profiles_'+overflowIdx),{list:overflow});}catch{}
+            }
+            await sleep(200); // pause avant retry
+          } else if(msg.includes('quota')||msg.includes('429')){
+            // Rate limit: attendre plus longtemps
+            await sleep(1000*attempts);
+          } else {
+            // Autre erreur: on abandonne ce chunk silencieusement
+            console.warn('[chunk '+idx+'] write failed:',e.code||e.message);
+            break;
+          }
         }
       }
     }));
     done+=wave.reduce((s,c)=>s+c.data.length,0);
     if(onProgress) onProgress(Math.min(done,total),total);
-    await sleep(20);
+    // Pause entre vagues pour respecter les quotas Firestore
+    await sleep(30);
   }
+
+  // Mettre à jour le manifest et invalider le cache
   try{
     await setDoc(doc(db,'securedb','profiles_manifest'),{
       chunks:finalChunk,total:oldTotal+total,updatedAt:new Date().toISOString()
     });
-  }catch(e){console.warn('manifest',e);}
+    _invalidateManifest();
+  }catch(e){console.warn('manifest update failed:',e);}
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1639,21 +1681,23 @@ async function submitAutoUpload(){
 
   btn.disabled=true;
   progress.style.display='block';
-  fill.style.width='1%';
-  label.textContent='Reading file...';
+  fill.style.width='2%';
+  label.textContent='Preparing posts...';
+
+  // yield au browser pour qu'il affiche le label avant de bloquer le thread
+  await sleep(30);
 
   const access=document.getElementById('f-auto-access').value;
   const ext='.'+autoFile.name.split('.').pop().toLowerCase();
   const postedBy=currentUser?(_userData.displayName||currentUser.email.split('@')[0]):'Anonyme';
   const baseTime=Date.now();
 
-  // FIX: Normaliser les retours à la ligne (CRLF -> LF) avant de splitter
+  // Normaliser les sauts de ligne (CRLF Windows -> LF)
   const normalizedContent=autoFileContent.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
   const allLines=normalizedContent.split('\n');
 
   const newPosts=[];
   let postIdx=0;
-
   for(let i=0;i<allLines.length;i+=linesPerPost){
     const c=allLines.slice(i,i+linesPerPost).join('\n').trim();
     if(!c) continue;
@@ -1668,34 +1712,33 @@ async function submitAutoUpload(){
     postIdx++;
   }
 
-  if(!newPosts.length){showToast('File is empty!');btn.disabled=false;progress.style.display='none';return;}
+  if(!newPosts.length){
+    showToast('File is empty or no valid lines found!');
+    btn.disabled=false;progress.style.display='none';
+    return;
+  }
 
   label.textContent='0 / '+newPosts.length.toLocaleString()+' posts saved...';
-  fill.style.width='2%';
+  fill.style.width='3%';
+  await sleep(30); // yield pour afficher
 
-  // Preview UI immédiat (50 premiers)
+  // Ajouter les 50 premiers dans l'UI immédiatement
   const uiPreview=newPosts.slice(0,50);
   allProfiles=[...uiPreview,...allProfiles];
   shuffledProfiles=[...uiPreview,...shuffledProfiles];
   profilesLoaded=true;
 
-  // FIX: Chunker en lots plus petits pour éviter le crash mémoire (max 500 posts/vague)
-  const BATCH_SIZE=500;
-  let totalDone=0;
-
   try{
-    for(let batchStart=0;batchStart<newPosts.length;batchStart+=BATCH_SIZE){
-      const batch=newPosts.slice(batchStart,batchStart+BATCH_SIZE);
-      await savePostsBatchFS(batch,(done,total)=>{
-        const overallDone=batchStart+done;
-        const pct=2+Math.floor((overallDone/newPosts.length)*95);
-        fill.style.width=pct+'%';
-        label.textContent=overallDone.toLocaleString()+' / '+newPosts.length.toLocaleString()+' posts saved...';
-      });
-      totalDone+=batch.length;
-      // Petite pause entre batches pour pas freeze le browser
-      await sleep(50);
-    }
+    // Invalider le cache manifest avant de commencer
+    _invalidateManifest();
+
+    // Un seul appel savePostsBatchFS pour tous les posts
+    // La fonction gère elle-même les chunks et le rate limiting
+    await savePostsBatchFS(newPosts,(done,total)=>{
+      const pct=3+Math.floor((done/total)*94);
+      fill.style.width=pct+'%';
+      label.textContent=done.toLocaleString()+' / '+total.toLocaleString()+' posts saved...';
+    });
 
     // Ajouter le reste dans l'UI
     const rest=newPosts.slice(50);
@@ -1710,11 +1753,11 @@ async function submitAutoUpload(){
     showToast(newPosts.length.toLocaleString()+' posts saved! 🎉');
 
   }catch(e){
-    console.error('auto-upload:',e);
-    label.textContent='❌ Error: '+e.message;
-    btn.textContent='Retry?';
+    console.error('auto-upload error:',e);
+    label.textContent='❌ Error: '+(e.message||e.code||'Unknown error');
+    btn.textContent='⚡ RETRY';
     btn.disabled=false;
-    showToast('Error: '+e.message);
+    showToast('❌ Error: '+(e.message||e.code||'Unknown error'));
     return;
   }
 
